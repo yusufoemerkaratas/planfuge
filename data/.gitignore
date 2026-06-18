@@ -11,6 +11,7 @@
 !samples/
 !samples/.gitkeep
 !samples/*.png
+!samples/*.json
 !pages/
 !pages/*.png
 !metadata/

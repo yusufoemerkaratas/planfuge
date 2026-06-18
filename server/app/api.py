@@ -1,3 +1,6 @@
+from dataclasses import asdict
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.responses import Response
 
@@ -13,6 +16,7 @@ from server.app.services.calculations import (
     calculate_weight_kg,
     get_review_status,
 )
+from server.app.services.candidate_loader import load_candidates, load_sample_candidates
 from server.app.services.csv_export import CSV_COLUMNS, serialize_csv, to_csv_row
 
 
@@ -78,3 +82,22 @@ def weight_config_from_request(request: WeightConfigRequest) -> WeightConfig:
         density_kg_per_m3=request.density_kg_per_m3,
         max_weight_kg=request.max_weight_kg,
     )
+
+
+def _get_project_root() -> Path:
+    if hasattr(app.state, "project_root"):
+        return app.state.project_root
+    return Path.cwd()
+
+
+@app.get("/api/candidates/sample")
+def get_sample_candidates() -> dict:
+    result = load_sample_candidates(_get_project_root())
+    return asdict(result)
+
+
+@app.get("/api/candidates/{plan_id}")
+def get_candidates(plan_id: str) -> dict:
+    result = load_candidates(_get_project_root(), plan_id)
+    return asdict(result)
+

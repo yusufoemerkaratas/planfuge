@@ -1,0 +1,57 @@
+{
+  "plan_id": "SAMPLE_DEMO",
+  "candidate_count": 3,
+  "candidates": [
+    {
+      "candidate_id": "sample-wdb-001",
+      "source": "sample",
+      "label_type": "WDB",
+      "raw_text": "WDB 20/50 d=25",
+      "bbox_image": [1200, 3400, 180, 90],
+      "crop_path": null,
+      "width_mm": 200,
+      "height_mm": 500,
+      "diameter_mm": null,
+      "ra_value": null,
+      "ok_value": null,
+      "reference": "H-17",
+      "confidence": 0.93,
+      "review_comment": null,
+      "status": "needs_review"
+    },
+    {
+      "candidate_id": "sample-ddb-002",
+      "source": "sample",
+      "label_type": "DDB",
+      "raw_text": "DDB d=60",
+      "bbox_image": [4500, 2100, 150, 75],
+      "crop_path": null,
+      "width_mm": null,
+      "height_mm": null,
+      "diameter_mm": 600,
+      "ra_value": null,
+      "ok_value": null,
+      "reference": "K-04",
+      "confidence": 0.87,
+      "review_comment": null,
+      "status": "needs_review"
+    },
+    {
+      "candidate_id": "sample-unknown-003",
+      "source": "sample",
+      "label_type": null,
+      "raw_text": "??? 15/30",
+      "bbox_image": [7800, 5200, 200, 100],
+      "crop_path": null,
+      "width_mm": null,
+      "height_mm": null,
+      "diameter_mm": null,
+      "ra_value": null,
+      "ok_value": null,
+      "reference": null,
+      "confidence": 0.42,
+      "review_comment": null,
+      "status": "needs_review"
+    }
+  ]
+}
