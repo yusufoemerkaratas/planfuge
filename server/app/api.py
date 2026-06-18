@@ -184,3 +184,16 @@ def get_crop_image(filename: str) -> Response:
         content = f.read()
     return Response(content=content, media_type="image/png")
 
+
+@app.get("/api/images/overlays/{plan_id}")
+def get_overlay_image(plan_id: str) -> Response:
+    from fastapi import HTTPException
+    
+    image_path = _get_project_root() / "outputs" / "overlays" / f"{plan_id}_overlay.png"
+    if not image_path.exists():
+        raise HTTPException(status_code=404, detail="Overlay image not found")
+        
+    with open(image_path, "rb") as f:
+        content = f.read()
+    return Response(content=content, media_type="image/png")
+

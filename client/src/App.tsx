@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { LayoutDashboard, FileCheck, Save, Download, FileJson, AlertCircle, Maximize2, Loader2, CheckCircle2, Image as ImageIcon } from 'lucide-react'
+import { LayoutDashboard, FileCheck, Save, Download, FileJson, AlertCircle, Maximize2, Loader2, CheckCircle2, Image as ImageIcon, Layers } from 'lucide-react'
 
 export interface Candidate {
   candidate_id: string;
@@ -21,10 +21,14 @@ function App() {
   const [activePlan, setActivePlan] = useState<string | null>(null)
   const [plans, setPlans] = useState<string[]>([])
   const [loadingPlans, setLoadingPlans] = useState(true)
+  
+  // Plan-specific states
   const [metadata, setMetadata] = useState<{image_width?: number, image_height?: number, scale?: number} | null>(null)
   const [imageError, setImageError] = useState(false)
+  const [pipelineStatus, setPipelineStatus] = useState<any>(null)
+  const [showOverlay, setShowOverlay] = useState(false)
 
-  // Candidates state
+  // Candidates states
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [loadingCandidates, setLoadingCandidates] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -48,12 +52,14 @@ function App() {
       .finally(() => setLoadingPlans(false))
   }, [])
 
-  // Fetch metadata and candidates when activePlan changes
+  // Fetch metadata, candidates and status when activePlan changes
   useEffect(() => {
     if (!activePlan) return
     setImageError(false)
     setMetadata(null)
     setCandidates([])
+    setPipelineStatus(null)
+    setShowOverlay(false)
     setLoadingCandidates(true)
     setSaveSuccess(false)
     setSelectedCandidateId(null)
@@ -67,7 +73,15 @@ function App() {
       })
       .catch(err => console.error("Failed to load metadata:", err))
 
-    // 2. Fetch candidates (Try reviews first, fallback to raw candidates)
+    // 2. Fetch pipeline status
+    fetch(`/api/status/${activePlan}`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data) setPipelineStatus(data)
+      })
+      .catch(err => console.error("Failed to load pipeline status:", err))
+
+    // 3. Fetch candidates (Try reviews first, fallback to raw candidates)
     fetch(`/api/reviews/${activePlan}`)
       .then(res => {
         if (res.ok) return res.json()
@@ -114,6 +128,10 @@ function App() {
       if (response.ok) {
         setSaveSuccess(true)
         setTimeout(() => setSaveSuccess(false), 3000)
+        // Refresh status to update UI flags
+        fetch(`/api/status/${activePlan}`)
+          .then(res => res.ok ? res.json() : null)
+          .then(data => { if (data) setPipelineStatus(data) })
       } else {
         console.error("Save failed:", await response.text())
       }
@@ -150,6 +168,8 @@ function App() {
       onClick={(e) => e.stopPropagation()}
     />
   )
+
+  const hasOverlay = pipelineStatus?.files?.overlay_image === true;
 
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
@@ -231,19 +251,47 @@ function App() {
                 
                 {/* Top Half: Plan Image Viewer */}
                 <div className="flex-[3] relative border-b border-border overflow-auto flex items-start justify-center p-6 bg-muted/10">
+                  
+                  {/* Floating Toggle Switch */}
+                  {hasOverlay && (
+                    <div className="absolute top-4 right-4 z-20 bg-background/90 backdrop-blur-md p-1.5 rounded-full border border-border shadow-md flex items-center space-x-1">
+                      <button
+                        onClick={() => setShowOverlay(false)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                          !showOverlay 
+                            ? 'bg-primary text-primary-foreground shadow-sm' 
+                            : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                        }`}
+                      >
+                        Original
+                      </button>
+                      <button
+                        onClick={() => setShowOverlay(true)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors flex items-center gap-1.5 ${
+                          showOverlay 
+                            ? 'bg-primary text-primary-foreground shadow-sm' 
+                            : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                        }`}
+                      >
+                        <Layers className="w-3 h-3" />
+                        Overlay
+                      </button>
+                    </div>
+                  )}
+
                   {imageError ? (
                     <div className="m-auto max-w-sm w-full rounded-xl border border-red-500/20 bg-red-500/5 p-6 text-center text-red-600 dark:text-red-400">
                       <AlertCircle className="w-10 h-10 mx-auto mb-3 opacity-80" />
                       <h3 className="font-semibold mb-1">Image Missing</h3>
                       <p className="text-sm opacity-80">
-                        Could not load data/pages/{activePlan}.png
+                        Could not load {showOverlay ? 'overlay' : 'original'} image for {activePlan}
                       </p>
                     </div>
                   ) : (
                     <div className="relative rounded-lg overflow-hidden border border-border shadow-md bg-white max-w-full">
                       <img 
-                        src={`/api/images/pages/${activePlan}`} 
-                        alt={`Plan ${activePlan}`}
+                        src={showOverlay ? `/api/images/overlays/${activePlan}` : `/api/images/pages/${activePlan}`} 
+                        alt={`Plan ${activePlan} ${showOverlay ? 'Overlay' : ''}`}
                         className="max-w-full h-auto object-contain block"
                         onError={() => setImageError(true)}
                       />
@@ -416,24 +464,31 @@ function App() {
                   <ul className="space-y-3">
                     <li className="flex items-center justify-between text-sm">
                       <span className="flex items-center gap-2 text-foreground">
-                        <div className={`w-2 h-2 rounded-full ${!imageError ? 'bg-green-500' : 'bg-red-500'}`} />
+                        <div className={`w-2 h-2 rounded-full ${pipelineStatus?.files?.page_image ? 'bg-green-500' : 'bg-red-500'}`} />
                         Source Image
                       </span>
-                      <span className="text-muted-foreground text-xs">{!imageError ? 'Available' : 'Missing'}</span>
+                      <span className="text-muted-foreground text-xs">{pipelineStatus?.files?.page_image ? 'Available' : 'Missing'}</span>
                     </li>
                     <li className="flex items-center justify-between text-sm">
                       <span className="flex items-center gap-2 text-foreground">
-                        <div className={`w-2 h-2 rounded-full ${candidates.length > 0 ? 'bg-green-500' : 'bg-yellow-500'}`} />
+                        <div className={`w-2 h-2 rounded-full ${pipelineStatus?.files?.overlay_image ? 'bg-green-500' : 'bg-yellow-500'}`} />
+                        CV Overlay
+                      </span>
+                      <span className="text-muted-foreground text-xs">{pipelineStatus?.files?.overlay_image ? 'Available' : 'Missing'}</span>
+                    </li>
+                    <li className="flex items-center justify-between text-sm">
+                      <span className="flex items-center gap-2 text-foreground">
+                        <div className={`w-2 h-2 rounded-full ${pipelineStatus?.files?.candidates_json ? 'bg-green-500' : 'bg-yellow-500'}`} />
                         Candidates JSON
                       </span>
-                      <span className="text-muted-foreground text-xs">{candidates.length > 0 ? 'Loaded' : 'Missing'}</span>
+                      <span className="text-muted-foreground text-xs">{pipelineStatus?.files?.candidates_json ? 'Loaded' : 'Missing'}</span>
                     </li>
                     <li className="flex items-center justify-between text-sm">
                       <span className="flex items-center gap-2 text-foreground">
-                        <div className="w-2 h-2 rounded-full bg-yellow-500" />
-                        Verified Export
+                        <div className={`w-2 h-2 rounded-full ${pipelineStatus?.files?.review_json ? 'bg-green-500' : 'bg-yellow-500'}`} />
+                        Review Draft
                       </span>
-                      <span className="text-muted-foreground text-xs">Missing</span>
+                      <span className="text-muted-foreground text-xs">{pipelineStatus?.files?.review_json ? 'Saved' : 'Missing'}</span>
                     </li>
                   </ul>
                 </div>
