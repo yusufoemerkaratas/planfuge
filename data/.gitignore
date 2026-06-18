@@ -19,6 +19,9 @@
 !metadata/*.json
 !annotations/
 !annotations/.gitkeep
+!ocr_benchmark/
+!ocr_benchmark/**
 !words/
 !words/*.json
 !*.py
+
