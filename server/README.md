@@ -1,16 +1,51 @@
 # Backend Structure
 
-The backend is organized as an Express + TypeScript service.
+The backend is organized as a Python FastAPI service.
 
 ## Directories
 
-- `src/config`: environment, database, and runtime configuration
-- `src/controllers`: HTTP request handlers
-- `src/middlewares`: Express middleware
-- `src/models`: backend-facing data models and DTOs
-- `src/routes`: API route definitions
-- `src/services`: business logic
-- `src/utils`: shared backend utilities
-- `tests`: backend tests
+- `app`: API, domain models, and services
+- `app/services`: calculation and CSV export logic
+- `docs`: backend-facing contracts
+- `tests`: Python backend tests
 
-Keep controllers thin. Put business rules in services and data access behind small, testable interfaces.
+Keep API handlers thin. Put business rules in services and data access behind
+small, testable interfaces.
+
+## Current Structure
+
+```text
+server/
+├── app/
+│   ├── api.py
+│   ├── main.py
+│   ├── models.py
+│   ├── schemas.py
+│   └── services/
+│       ├── calculations.py
+│       └── csv_export.py
+├── docs/
+│   └── csv-export-contract.md
+├── tests/
+│   ├── test_api.py
+│   └── test_calculations.py
+└── README.md
+```
+
+## API Endpoints
+
+- `GET /health`
+- `GET /api/export/contract`
+- `POST /api/openings/calculate`
+- `POST /api/openings/csv`
+- `GET /docs` for FastAPI's interactive API documentation
+
+## Commands
+
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -r requirements.txt
+python -m unittest discover -s server/tests
+uvicorn server.app.main:app --reload
+```
