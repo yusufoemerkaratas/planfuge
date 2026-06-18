@@ -1,6 +1,11 @@
 import logging
+import json
+from pathlib import Path
 from typing import Any
 from src.candidates.opening_label_parser import parse_opening_label
+from src.image.red_annotation_detector import detect_red_regions, save_red_debug_mask
+from src.image.crop_regions import crop_red_regions
+from src.image.ocr_crops import run_ocr_on_crops
 
 logger = logging.getLogger(__name__)
 
@@ -146,5 +151,91 @@ def extract_candidates_from_png_data(
         
         validate_candidate(candidate)
         candidates.append(candidate)
+        
+    return candidates
+
+
+def run_png_extraction_pipeline(
+    image_path: str | Path,
+    plan_id: str,
+    output_root: str | Path,
+    padding_px: int = 80,
+    min_area_px: int = 250,
+    psm: int = 6,
+    default_status: str = "needs_review"
+) -> list[dict[str, Any]]:
+    """
+    Orchestrate the end-to-end PNG extraction pipeline.
+    """
+    image_path = Path(image_path).resolve()
+    output_root = Path(output_root).resolve()
+    
+    debug_dir = output_root / "debug"
+    crops_dir = output_root / "crops"
+    candidates_dir = output_root / "candidates"
+    
+    # Ensure all directories exist
+    debug_dir.mkdir(parents=True, exist_ok=True)
+    crops_dir.mkdir(parents=True, exist_ok=True)
+    candidates_dir.mkdir(parents=True, exist_ok=True)
+    
+    # 1. Detect red regions
+    regions, debug_mask = detect_red_regions(image_path, min_area_px=min_area_px)
+    mask_path = debug_dir / f"{plan_id}_red_mask.png"
+    save_red_debug_mask(debug_mask, mask_path)
+    
+    crops_metadata_path = debug_dir / f"{plan_id}_red_crops.json"
+    ocr_results_path = debug_dir / f"{plan_id}_ocr_results.json"
+    candidates_path = candidates_dir / f"{plan_id}_candidates.json"
+    
+    # 2. Check if no red regions are detected
+    if not regions:
+        # Save empty files
+        with open(crops_metadata_path, "w", encoding="utf-8") as f:
+            json.dump([], f, indent=2)
+            
+        with open(ocr_results_path, "w", encoding="utf-8") as f:
+            json.dump([], f, indent=2)
+            
+        empty_payload = {
+            "plan_id": plan_id,
+            "candidate_count": 0,
+            "candidates": []
+        }
+        with open(candidates_path, "w", encoding="utf-8") as f:
+            json.dump(empty_payload, f, indent=2)
+            
+        return []
+        
+    # 3. Crop red regions
+    crop_metadata = crop_red_regions(
+        image=image_path,
+        regions=regions,
+        output_dir=crops_dir,
+        plan_id=plan_id,
+        padding_px=padding_px
+    )
+    with open(crops_metadata_path, "w", encoding="utf-8") as f:
+        json.dump(crop_metadata, f, indent=2)
+        
+    # 4. OCR on crops
+    ocr_results = run_ocr_on_crops(crop_metadata, psm=psm)
+    with open(ocr_results_path, "w", encoding="utf-8") as f:
+        json.dump(ocr_results, f, indent=2)
+        
+    # 5. Extract candidates
+    candidates = extract_candidates_from_png_data(
+        crops_metadata=crop_metadata,
+        ocr_results=ocr_results,
+        default_status=default_status
+    )
+    
+    # 6. Validate candidates
+    for c in candidates:
+        validate_candidate(c)
+        
+    # 7. Save candidates
+    with open(candidates_path, "w", encoding="utf-8") as f:
+        json.dump(candidates, f, indent=2, ensure_ascii=False)
         
     return candidates
