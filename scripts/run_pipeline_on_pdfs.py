@@ -154,6 +154,60 @@ def candidate_to_opening(cand: dict, plan_id: str, plan_config: PlanConfig) -> O
     )
 
 
+def group_openings(openings: list[Opening], candidates: list[dict], max_pixel_dist: float = 2000.0) -> list[Opening]:
+    centroids = []
+    for cand in candidates:
+        bbox = cand.get("bbox_image", [0, 0, 0, 0])
+        cx = bbox[0] + bbox[2] / 2
+        cy = bbox[1] + bbox[3] / 2
+        centroids.append((cx, cy))
+        
+    grouped = []
+    used = set()
+    
+    for i, op in enumerate(openings):
+        if i in used:
+            continue
+            
+        curr_op = op
+        qty = 1
+        used.add(i)
+        
+        for j in range(i + 1, len(openings)):
+            if j in used:
+                continue
+                
+            other = openings[j]
+            # Check grouping criteria:
+            # 1. Same geometry
+            if curr_op.geometry != other.geometry:
+                continue
+            # 2. Same dimensions
+            if curr_op.length_cm != other.length_cm or curr_op.width_cm != other.width_cm or curr_op.height_cm != other.height_cm:
+                continue
+            # 3. Same type
+            if curr_op.opening_type != other.opening_type:
+                continue
+            # 4. Same grid coordinate
+            if curr_op.grid_coordinate != other.grid_coordinate:
+                continue
+            # 5. Nearby pixel distance
+            import math
+            dist = math.hypot(centroids[i][0] - centroids[j][0], centroids[i][1] - centroids[j][1])
+            if dist > max_pixel_dist:
+                continue
+                
+            # Merge!
+            qty += 1
+            used.add(j)
+            
+        from dataclasses import replace
+        grouped.append(replace(curr_op, quantity=qty))
+        
+    return grouped
+
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -233,8 +287,9 @@ def main() -> None:
 
             plan_config = PlanConfig.load_for_plan(REPO_ROOT, plan_id)
             openings = [candidate_to_opening(cand, plan_id, plan_config) for cand in candidates]
+            grouped_openings = group_openings(openings, candidates)
             config = WeightConfig()
-            rows = [to_csv_row(op, config) for op in openings]
+            rows = [to_csv_row(op, config) for op in grouped_openings]
             csv_content = serialize_csv(rows)
             csv_path.write_text(csv_content, encoding="utf-8")
             print(f"    Saved contract CSV to: {csv_path}")
