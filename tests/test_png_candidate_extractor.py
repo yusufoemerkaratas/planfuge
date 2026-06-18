@@ -224,11 +224,16 @@ class TestPngCandidateExtractor(unittest.TestCase):
             mock_img_path = Path(tmp_dir) / "mock_plan.png"
             Image.new("RGB", (100, 100), "white").save(mock_img_path)
             
+            out_path = Path(tmp_dir) / "out"
             candidates = run_png_extraction_pipeline(
                 image_path=mock_img_path,
                 plan_id="mock_plan",
-                output_root=Path(tmp_dir) / "out"
+                output_root=out_path,
+                clean_red=True
             )
+            
+            # Verify clean_red and output_root were passed to run_ocr_on_crops
+            mock_ocr.assert_called_once_with(crop_metadata, psm=6, clean_red=True, output_root=out_path)
             
             self.assertEqual(len(candidates), 1)
             c = candidates[0]
@@ -237,12 +242,12 @@ class TestPngCandidateExtractor(unittest.TestCase):
             self.assertEqual(c["confidence"], 0.3)
             
             # Check directories
-            self.assertTrue((Path(tmp_dir) / "out" / "crops").exists())
-            self.assertTrue((Path(tmp_dir) / "out" / "debug").exists())
-            self.assertTrue((Path(tmp_dir) / "out" / "candidates").exists())
+            self.assertTrue((out_path / "crops").exists())
+            self.assertTrue((out_path / "debug").exists())
+            self.assertTrue((out_path / "candidates").exists())
             
             # Check files saved
-            self.assertTrue((Path(tmp_dir) / "out" / "candidates" / "mock_plan_candidates.json").exists())
+            self.assertTrue((out_path / "candidates" / "mock_plan_candidates.json").exists())
 
 
 if __name__ == "__main__":

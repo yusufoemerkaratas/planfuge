@@ -162,7 +162,8 @@ def run_png_extraction_pipeline(
     padding_px: int = 80,
     min_area_px: int = 250,
     psm: int = 6,
-    default_status: str = "needs_review"
+    default_status: str = "needs_review",
+    clean_red: bool = False
 ) -> list[dict[str, Any]]:
     """
     Orchestrate the end-to-end PNG extraction pipeline.
@@ -219,7 +220,7 @@ def run_png_extraction_pipeline(
         json.dump(crop_metadata, f, indent=2)
         
     # 4. OCR on crops
-    ocr_results = run_ocr_on_crops(crop_metadata, psm=psm)
+    ocr_results = run_ocr_on_crops(crop_metadata, psm=psm, clean_red=clean_red, output_root=output_root)
     with open(ocr_results_path, "w", encoding="utf-8") as f:
         json.dump(ocr_results, f, indent=2)
         
