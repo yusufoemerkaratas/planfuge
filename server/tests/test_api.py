@@ -322,6 +322,28 @@ class ApiTests(unittest.TestCase):
             saved_file = Path(data["path"])
             self.assertTrue(saved_file.exists())
 
+    def test_pipeline_status_endpoint_returns_flags(self) -> None:
+        import asyncio
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            
+            # Create one dummy file to test partial true state
+            (root / "outputs" / "crops").mkdir(parents=True)
+
+            async def run_request() -> dict:
+                app.state.project_root = root
+                transport = ASGITransport(app=app)
+                async with AsyncClient(transport=transport, base_url="http://test") as client:
+                    response = await client.get("/api/status/SP_U1_0009")
+                    return response.json()
+
+            data = asyncio.run(run_request())
+
+            self.assertEqual(data["plan_id"], "SP_U1_0009")
+            self.assertTrue(data["files"]["crops_dir"])
+            self.assertFalse(data["files"]["export_csv"])
+
 
 if __name__ == "__main__":
     unittest.main()
