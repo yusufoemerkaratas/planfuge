@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { LayoutDashboard, FileCheck, Save, Download, FileJson, AlertCircle, Maximize2, Loader2, CheckCircle2 } from 'lucide-react'
+import { LayoutDashboard, FileCheck, Save, Download, FileJson, AlertCircle, Maximize2, Loader2, CheckCircle2, Image as ImageIcon } from 'lucide-react'
 
 export interface Candidate {
   candidate_id: string;
@@ -13,6 +13,7 @@ export interface Candidate {
   ok_value: string | null;
   reference: string | null;
   review_comment: string | null;
+  crop_path: string | null;
   [key: string]: any;
 }
 
@@ -28,6 +29,8 @@ function App() {
   const [loadingCandidates, setLoadingCandidates] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
+  const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null)
+  const [cropError, setCropError] = useState(false)
 
   // Fetch available plans on mount
   useEffect(() => {
@@ -53,6 +56,8 @@ function App() {
     setCandidates([])
     setLoadingCandidates(true)
     setSaveSuccess(false)
+    setSelectedCandidateId(null)
+    setCropError(false)
     
     // 1. Fetch metadata
     fetch(`/api/metadata/${activePlan}`)
@@ -89,6 +94,11 @@ function App() {
 
   }, [activePlan])
 
+  // Reset crop error when selection changes
+  useEffect(() => {
+    setCropError(false)
+  }, [selectedCandidateId])
+
   const handleSave = async () => {
     if (!activePlan || candidates.length === 0) return
     setIsSaving(true)
@@ -120,6 +130,15 @@ function App() {
     )
   }
 
+  const selectedCandidate = candidates.find(c => c.candidate_id === selectedCandidateId)
+  
+  // Helper to extract filename from crop_path
+  const getCropFilename = (path: string | null) => {
+    if (!path) return null;
+    const parts = path.split('/');
+    return parts[parts.length - 1];
+  }
+
   // Helper for text inputs
   const TextInput = ({ candidate, field, type = "text" }: { candidate: Candidate, field: keyof Candidate, type?: string }) => (
     <input
@@ -128,6 +147,7 @@ function App() {
       onChange={(e) => handleCellChange(candidate.candidate_id, field, type === "number" ? (e.target.value ? Number(e.target.value) : null) : e.target.value)}
       className="w-full bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none focus:ring-0 px-1 py-1 text-sm transition-colors"
       placeholder="-"
+      onClick={(e) => e.stopPropagation()}
     />
   )
 
@@ -235,6 +255,7 @@ function App() {
                 <div className="flex-[2] bg-background flex flex-col min-h-0">
                   <div className="px-4 py-3 border-b border-border flex items-center justify-between bg-card">
                     <h3 className="font-semibold text-sm">Detected Candidates ({candidates.length})</h3>
+                    <p className="text-xs text-muted-foreground">Click a row to view crop preview.</p>
                   </div>
                   
                   <div className="flex-1 overflow-auto p-0">
@@ -267,11 +288,15 @@ function App() {
                           </thead>
                           <tbody className="divide-y divide-border bg-card">
                             {candidates.map((c) => (
-                              <tr key={c.candidate_id} className="hover:bg-muted/30 transition-colors">
-                                <td className="px-4 py-2 whitespace-nowrap text-xs font-medium text-muted-foreground border-r border-border/50 bg-muted/10">
+                              <tr 
+                                key={c.candidate_id} 
+                                onClick={() => setSelectedCandidateId(c.candidate_id)}
+                                className={`transition-colors cursor-pointer ${selectedCandidateId === c.candidate_id ? 'bg-primary/10 hover:bg-primary/20' : 'hover:bg-muted/30'}`}
+                              >
+                                <td className="px-4 py-2 whitespace-nowrap text-xs font-medium text-muted-foreground border-r border-border/50 bg-muted/5">
                                   {c.candidate_id}
                                 </td>
-                                <td className="px-2 py-2 whitespace-nowrap">
+                                <td className="px-2 py-2 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                                   <select 
                                     value={c.status || 'needs_review'} 
                                     onChange={(e) => handleCellChange(c.candidate_id, 'status', e.target.value)}
@@ -311,6 +336,77 @@ function App() {
               {/* Right Column: Status & Actions (Fixed width on desktop) */}
               <div className="w-full lg:w-96 shrink-0 overflow-y-auto p-6 bg-background space-y-6">
                 
+                {/* Crop Preview Panel */}
+                <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+                  <h4 className="text-base font-semibold mb-4 flex items-center gap-2">
+                    <ImageIcon className="w-4 h-4 text-primary" />
+                    Crop Preview
+                  </h4>
+                  {!selectedCandidate ? (
+                    <div className="h-32 border border-dashed border-border rounded-lg flex items-center justify-center bg-muted/30">
+                      <p className="text-sm text-muted-foreground">Select a candidate from the table.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {/* Crop Image View */}
+                      {!selectedCandidate.crop_path ? (
+                        <div className="h-32 border border-dashed border-border rounded-lg flex flex-col items-center justify-center bg-muted/30">
+                          <ImageIcon className="w-6 h-6 text-muted-foreground/50 mb-2" />
+                          <p className="text-sm text-muted-foreground">No crop image available</p>
+                        </div>
+                      ) : cropError ? (
+                        <div className="h-32 border border-dashed border-red-500/30 rounded-lg flex flex-col items-center justify-center bg-red-500/5">
+                          <AlertCircle className="w-6 h-6 text-red-400 mb-2" />
+                          <p className="text-xs text-red-500 text-center px-4">Failed to load crop image</p>
+                        </div>
+                      ) : (
+                        <div className="border border-border rounded-lg overflow-hidden bg-white flex items-center justify-center min-h-[128px] p-2">
+                          <img 
+                            src={`/api/images/crops/${getCropFilename(selectedCandidate.crop_path)}`}
+                            alt="Crop Preview"
+                            className="max-w-full max-h-48 object-contain"
+                            onError={() => setCropError(true)}
+                          />
+                        </div>
+                      )}
+                      
+                      {/* Parsed Data Details */}
+                      <div className="bg-muted/30 rounded-lg p-3 space-y-2 border border-border">
+                        <div className="flex justify-between items-center border-b border-border/50 pb-2 mb-2">
+                          <span className="text-xs font-semibold text-muted-foreground">ID</span>
+                          <span className="text-xs font-mono text-foreground truncate max-w-[150px]" title={selectedCandidate.candidate_id}>
+                            {selectedCandidate.candidate_id}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div>
+                            <span className="block text-muted-foreground mb-0.5">Label Type</span>
+                            <span className="font-medium">{selectedCandidate.label_type || '-'}</span>
+                          </div>
+                          <div>
+                            <span className="block text-muted-foreground mb-0.5">Raw Text</span>
+                            <span className="font-medium">{selectedCandidate.raw_text || '-'}</span>
+                          </div>
+                          <div>
+                            <span className="block text-muted-foreground mb-0.5">Dimensions (mm)</span>
+                            <span className="font-medium">
+                              {selectedCandidate.width_mm && selectedCandidate.height_mm 
+                                ? `${selectedCandidate.width_mm}x${selectedCandidate.height_mm}`
+                                : selectedCandidate.diameter_mm 
+                                ? `Ø${selectedCandidate.diameter_mm}`
+                                : '-'}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="block text-muted-foreground mb-0.5">Reference</span>
+                            <span className="font-medium">{selectedCandidate.reference || '-'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 {/* Status Panel */}
                 <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
                   <h4 className="text-base font-semibold mb-4 flex items-center gap-2">

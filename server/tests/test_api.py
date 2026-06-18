@@ -393,6 +393,32 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(content, b"dummy_png_bytes")
             self.assertEqual(status_missing, 404)
 
+    def test_get_crop_image_returns_file_or_404(self) -> None:
+        import asyncio
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            crops_dir = root / "outputs" / "crops"
+            crops_dir.mkdir(parents=True)
+            
+            # Create a dummy crop image
+            dummy_image = crops_dir / "SP_U1_0001_crop1.png"
+            dummy_image.write_bytes(b"dummy_crop_bytes")
+
+            async def run_requests() -> tuple[int, bytes, int]:
+                app.state.project_root = root
+                transport = ASGITransport(app=app)
+                async with AsyncClient(transport=transport, base_url="http://test") as client:
+                    resp_ok = await client.get("/api/images/crops/SP_U1_0001_crop1.png")
+                    resp_missing = await client.get("/api/images/crops/missing_crop.png")
+                    return resp_ok.status_code, resp_ok.content, resp_missing.status_code
+
+            status_ok, content, status_missing = asyncio.run(run_requests())
+
+            self.assertEqual(status_ok, 200)
+            self.assertEqual(content, b"dummy_crop_bytes")
+            self.assertEqual(status_missing, 404)
+
 
 if __name__ == "__main__":
     unittest.main()

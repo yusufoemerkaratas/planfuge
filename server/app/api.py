@@ -171,3 +171,16 @@ def get_plan_image(plan_id: str) -> Response:
         content = f.read()
     return Response(content=content, media_type="image/png")
 
+
+@app.get("/api/images/crops/{filename}")
+def get_crop_image(filename: str) -> Response:
+    from fastapi import HTTPException
+    
+    image_path = _get_project_root() / "outputs" / "crops" / filename
+    if not image_path.exists():
+        raise HTTPException(status_code=404, detail="Crop image not found")
+        
+    with open(image_path, "rb") as f:
+        content = f.read()
+    return Response(content=content, media_type="image/png")
+
