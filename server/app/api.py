@@ -23,6 +23,7 @@ from server.app.services.candidate_loader import (
     load_sample_candidates,
 )
 from server.app.services.csv_export import CSV_COLUMNS, serialize_csv, to_csv_row
+from server.app.services.json_export import export_verified_openings
 from server.app.services.metadata_loader import load_metadata
 from server.app.services.review_saver import save_reviewed_candidates
 
@@ -124,4 +125,9 @@ def get_reviews(plan_id: str) -> dict:
 @app.post("/api/reviews/{plan_id}")
 def save_reviews(plan_id: str, candidates: list[dict[str, Any]]) -> dict:
     return save_reviewed_candidates(_get_project_root(), plan_id, candidates)
+
+
+@app.post("/api/exports/json/{plan_id}")
+def export_verified_json(plan_id: str, candidates: list[dict[str, Any]]) -> dict:
+    return export_verified_openings(_get_project_root(), plan_id, candidates)
 
