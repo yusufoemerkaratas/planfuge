@@ -113,8 +113,8 @@ def candidate_to_opening(cand: dict, plan_id: str, plan_config: PlanConfig) -> O
         length_cm = (width_mm / 10.0) if width_mm is not None else 0.0
         width_cm = (height_mm / 10.0) if height_mm is not None else 0.0
 
-    # Default height_cm to 30 cm if not specified
-    height_cm = 30.0
+    # Default height_cm to configured default if not specified
+    height_cm = plan_config.default_height_cm
 
     label_type = cand.get("label_type")
     opening_type = "Ceiling" if label_type in ("WDB", "DDB") else "Unknown"
@@ -122,7 +122,12 @@ def candidate_to_opening(cand: dict, plan_id: str, plan_config: PlanConfig) -> O
     floor = parse_floor(plan_id)
     confidence = cand.get("confidence", 0.5)
     status = cand.get("status", "needs_review")
-    review_required = (status == "needs_review" or confidence < 0.7)
+    
+    # Check if default height was used
+    is_default_height = (cand.get("ra_value") is None and cand.get("ok_value") is None)
+
+    # Issue #56 review rules
+    review_required = (status == "needs_review" or confidence < 0.60 or is_default_height)
 
     # Calculate centroids
     bbox = cand.get("bbox_image", [0, 0, 0, 0])
