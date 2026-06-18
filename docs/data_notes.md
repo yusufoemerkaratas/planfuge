@@ -31,6 +31,23 @@ Word-level bounding boxes are stored in `data/words/<plan_id>_words.json`.
 | HSI   | 10    |
 | BDP   | 0     |
 
+## Manually Checked Annotation Examples (Issue #22)
+
+Reference examples for evaluating the CV candidate extraction pipeline are stored in `data/annotations/<plan_id>_examples.json`.
+
+| Plan        | Total examples | Opening-relevant | Non-relevant |
+|-------------|---------------|-----------------|--------------|
+| SP_U1_0001  | 8             | 6               | 2            |
+| SP_U1_0002  | 8             | 6               | 2            |
+| SP_U1_0003  | 8             | 6               | 2            |
+| SP_U1_0004  | 8             | 6               | 2            |
+| SP_U1_0005  | 7             | 5               | 2            |
+| SP_U1_0006  | 5             | 3               | 2            |
+
+Each entry contains: `example_id`, `plan_id`, `rough_bbox_image` [x0, y0, x1, y1], `target_type`, `expected_text`, `is_opening_relevant`, `comment`.
+Bounding box coordinates are derived from `data/words/<plan_id>_words.json`.
+Visualizations are available in `data/samples/<plan_id>_annotated.png`.
+
 ## Red Markup Clarification
 Red cloud markings in the plans are revision/comment annotations only.
 They are NOT the target openings.
