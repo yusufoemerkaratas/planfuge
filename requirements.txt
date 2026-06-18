@@ -6,3 +6,4 @@ pandas
 pillow
 PyMuPDF
 numpy
+pytesseract>=0.3.10
