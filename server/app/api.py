@@ -25,6 +25,7 @@ from server.app.services.candidate_loader import (
 from server.app.services.csv_export import CSV_COLUMNS, serialize_csv, to_csv_row
 from server.app.services.json_export import export_verified_openings
 from server.app.services.metadata_loader import load_metadata
+from server.app.services.pandas_export import export_verified_openings_csv
 from server.app.services.review_saver import save_reviewed_candidates
 
 
@@ -130,4 +131,9 @@ def save_reviews(plan_id: str, candidates: list[dict[str, Any]]) -> dict:
 @app.post("/api/exports/json/{plan_id}")
 def export_verified_json(plan_id: str, candidates: list[dict[str, Any]]) -> dict:
     return export_verified_openings(_get_project_root(), plan_id, candidates)
+
+
+@app.post("/api/exports/csv/{plan_id}")
+def export_verified_csv(plan_id: str, candidates: list[dict[str, Any]]) -> dict:
+    return export_verified_openings_csv(_get_project_root(), plan_id, candidates)
 
