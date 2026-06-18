@@ -19,4 +19,6 @@
 !metadata/*.json
 !annotations/
 !annotations/.gitkeep
+!words/
+!words/*.json
 !*.py
