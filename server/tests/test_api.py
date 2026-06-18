@@ -344,6 +344,29 @@ class ApiTests(unittest.TestCase):
             self.assertTrue(data["files"]["crops_dir"])
             self.assertFalse(data["files"]["export_csv"])
 
+    def test_get_plans_endpoint_returns_discovered_plans(self) -> None:
+        import asyncio
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            pages_dir = root / "data" / "pages"
+            pages_dir.mkdir(parents=True)
+            (pages_dir / "SP_U1_0001.png").touch()
+            (pages_dir / "SP_U1_0002.png").touch()
+
+            async def run_request() -> dict:
+                app.state.project_root = root
+                transport = ASGITransport(app=app)
+                async with AsyncClient(transport=transport, base_url="http://test") as client:
+                    response = await client.get("/api/plans")
+                    return response.json()
+
+            data = asyncio.run(run_request())
+
+            self.assertIn("plans", data)
+            self.assertEqual(len(data["plans"]), 2)
+            self.assertEqual(data["plans"][0], "SP_U1_0001")
+
 
 if __name__ == "__main__":
     unittest.main()

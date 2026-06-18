@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
 from server.app.models import Opening, WeightConfig
@@ -27,10 +28,19 @@ from server.app.services.json_export import export_verified_openings
 from server.app.services.metadata_loader import load_metadata
 from server.app.services.pandas_export import export_verified_openings_csv
 from server.app.services.pipeline_status import check_pipeline_status
+from server.app.services.plan_discovery import discover_plans
 from server.app.services.review_saver import save_reviewed_candidates
 
 
 app = FastAPI(title="Plan2Print API", version="0.1.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/health")
@@ -142,4 +152,9 @@ def export_verified_csv(plan_id: str, candidates: list[dict[str, Any]]) -> dict:
 @app.get("/api/status/{plan_id}")
 def get_pipeline_status(plan_id: str) -> dict:
     return check_pipeline_status(_get_project_root(), plan_id)
+
+
+@app.get("/api/plans")
+def get_plans() -> dict:
+    return {"plans": discover_plans(_get_project_root())}
 
