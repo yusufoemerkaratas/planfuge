@@ -1,0 +1,150 @@
+import logging
+from typing import Any
+from src.candidates.opening_label_parser import parse_opening_label
+
+logger = logging.getLogger(__name__)
+
+VALID_STATUSES = {"needs_review", "verified", "rejected", "duplicate_candidate"}
+
+
+def validate_candidate(candidate: dict[str, Any]) -> None:
+    """
+    Validate that the candidate dictionary conforms to the schema and field types.
+    Raises TypeError or ValueError if validation fails.
+    """
+    if not isinstance(candidate.get("candidate_id"), str):
+        raise TypeError(f"candidate_id must be a string, got {type(candidate.get('candidate_id'))}")
+        
+    if not isinstance(candidate.get("source"), str):
+        raise TypeError(f"source must be a string, got {type(candidate.get('source'))}")
+        
+    label_type = candidate.get("label_type")
+    if label_type is not None and not isinstance(label_type, str):
+        raise TypeError(f"label_type must be a string or None, got {type(label_type)}")
+        
+    if not isinstance(candidate.get("raw_text"), str):
+        raise TypeError(f"raw_text must be a string, got {type(candidate.get('raw_text'))}")
+        
+    bbox = candidate.get("bbox_image")
+    if not isinstance(bbox, (list, tuple)) or len(bbox) != 4:
+        raise TypeError(f"bbox_image must be a list or tuple of 4 elements, got {type(bbox)}")
+    for val in bbox:
+        if not isinstance(val, (int, float)):
+            raise TypeError(f"bbox_image elements must be numeric, got {type(val)}")
+            
+    crop_path = candidate.get("crop_path")
+    if crop_path is not None and not isinstance(crop_path, str):
+        raise TypeError(f"crop_path must be a string or None, got {type(crop_path)}")
+        
+    for int_field in ("width_mm", "height_mm", "diameter_mm", "ra_value", "ok_value"):
+        val = candidate.get(int_field)
+        if val is not None and not isinstance(val, int):
+            raise TypeError(f"{int_field} must be an integer or None, got {type(val)}")
+            
+    ref = candidate.get("reference")
+    if ref is not None and not isinstance(ref, str):
+        raise TypeError(f"reference must be a string or None, got {type(ref)}")
+        
+    conf = candidate.get("confidence")
+    if not isinstance(conf, (int, float)):
+        raise TypeError(f"confidence must be float or int, got {type(conf)}")
+        
+    status = candidate.get("status")
+    if status not in VALID_STATUSES:
+        raise ValueError(f"status must be one of {VALID_STATUSES}, got '{status}'")
+
+
+def extract_candidates_from_png_data(
+    crops_metadata: list[dict[str, Any]],
+    ocr_results: list[dict[str, Any]] | None = None,
+    default_status: str = "needs_review"
+) -> list[dict[str, Any]]:
+    """
+    Combine red region metadata and OCR results into a list of opening candidates.
+    """
+    candidates = []
+    
+    # Build a lookup for OCR text by region_id
+    ocr_lookup = {}
+    if ocr_results:
+        for item in ocr_results:
+            rid = item.get("region_id")
+            if rid:
+                ocr_lookup[rid] = {
+                    "text": item.get("ocr_text", ""),
+                    "available": item.get("ocr_available", False)
+                }
+                
+    for idx, crop in enumerate(crops_metadata):
+        region_id = crop.get("region_id")
+        bbox_image = crop.get("bbox_image")
+        crop_path = crop.get("crop_path")
+        
+        # Determine OCR availability
+        ocr_info = ocr_lookup.get(region_id) if region_id else None
+        
+        if ocr_info is None:
+            # OCR missing or not run for this region
+            raw_text = ""
+            source = "png_red_annotation_region"
+            confidence = 0.3
+        else:
+            raw_text = ocr_info["text"] if ocr_info["text"] else ""
+            raw_text_stripped = raw_text.strip()
+            
+            if not ocr_info["available"]:
+                source = "png_red_annotation_region"
+                confidence = 0.3
+                raw_text = ""
+            else:
+                source = "png_red_annotation_ocr"
+                if not raw_text_stripped:
+                    confidence = 0.3
+                    raw_text = ""
+                else:
+                    confidence = 0.5  # default if not parseable
+                    raw_text = raw_text_stripped
+                    
+        # Defaults for parser fields
+        label_type = None
+        width_mm = None
+        height_mm = None
+        diameter_mm = None
+        ra_value = None
+        ok_value = None
+        reference = None
+        
+        # Try to parse if we have OCR text
+        if raw_text:
+            parsed = parse_opening_label(raw_text)
+            if parsed:
+                label_type = parsed.get("label_type")
+                width_mm = parsed.get("width_mm")
+                height_mm = parsed.get("height_mm")
+                diameter_mm = parsed.get("diameter_mm")
+                ra_value = parsed.get("ra_value")
+                ok_value = parsed.get("ok_value")
+                reference = parsed.get("reference")
+                confidence = 0.85
+                
+        candidate = {
+            "candidate_id": f"OP-{idx+1:03d}",
+            "source": source,
+            "label_type": label_type,
+            "raw_text": raw_text,
+            "bbox_image": bbox_image,
+            "crop_path": crop_path,
+            "width_mm": width_mm,
+            "height_mm": height_mm,
+            "diameter_mm": diameter_mm,
+            "ra_value": ra_value,
+            "ok_value": ok_value,
+            "reference": reference,
+            "confidence": confidence,
+            "status": default_status
+        }
+        
+        validate_candidate(candidate)
+        candidates.append(candidate)
+        
+    return candidates
