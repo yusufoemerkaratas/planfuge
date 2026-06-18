@@ -2,6 +2,7 @@ import logging
 import shutil
 from pathlib import Path
 from PIL import Image
+Image.MAX_IMAGE_PIXELS = None
 
 # Setup logger
 logger = logging.getLogger(__name__)

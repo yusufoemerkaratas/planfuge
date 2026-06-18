@@ -1,6 +1,7 @@
 import numpy as np
 from PIL import Image
-from src.image.red_annotation_detector import _rgb_to_hsv, _red_hsv_mask, _dilate
+Image.MAX_IMAGE_PIXELS = None
+from src.image.red_annotation_detector import _red_hsv_mask_optimized, _dilate
 
 
 def remove_red_pixels(pil_image: Image.Image, dilation_iterations: int = 1) -> tuple[Image.Image, Image.Image]:
@@ -10,8 +11,7 @@ def remove_red_pixels(pil_image: Image.Image, dilation_iterations: int = 1) -> t
     """
     rgb_img = pil_image.convert("RGB")
     rgb = np.asarray(rgb_img)
-    hsv = _rgb_to_hsv(rgb)
-    red_mask = _red_hsv_mask(hsv)
+    red_mask = _red_hsv_mask_optimized(rgb)
     
     if dilation_iterations > 0:
         red_mask = _dilate(red_mask, iterations=dilation_iterations)

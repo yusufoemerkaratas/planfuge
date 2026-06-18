@@ -1,0 +1,102 @@
+#!/usr/bin/env python3
+"""Convert PDFs in target folder to PNGs and run candidate extraction pipeline."""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+# Add REPO_ROOT to path
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+try:
+    import fitz  # PyMuPDF
+except ImportError:
+    print("Error: PyMuPDF (fitz) is not installed. Please install it first.", file=sys.stderr)
+    sys.exit(1)
+
+from src.candidates.png_candidate_extractor import run_png_extraction_pipeline
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--pdf-dir",
+        default=str(REPO_ROOT.parent / "pdf"),
+        help="Path to the folder containing PDF files. Defaults to ../pdf."
+    )
+    parser.add_argument(
+        "--out",
+        default="outputs",
+        help="Output root directory. Defaults to 'outputs'."
+    )
+    parser.add_argument(
+        "--clean-red",
+        action="store_true",
+        default=True,
+        help="Enable HSV-based red markup/cloud pixel cleanup. Defaults to True."
+    )
+    args = parser.parse_args()
+
+    pdf_dir = Path(args.pdf_dir).resolve()
+    output_root = Path(args.out).resolve()
+
+    if not pdf_dir.exists() or not pdf_dir.is_dir():
+        print(f"Error: PDF directory not found or is not a directory: {pdf_dir}", file=sys.stderr)
+        sys.exit(1)
+
+    pdf_files = sorted(list(pdf_dir.glob("*.pdf")))
+    if not pdf_files:
+        print(f"No PDF files found in {pdf_dir}", file=sys.stderr)
+        sys.exit(0)
+
+    print(f"Running pipeline on {len(pdf_files)} PDF files from {pdf_dir}")
+    print(f"Output root: {output_root}")
+    print(f"Clean red annotation markup: {args.clean_red}")
+
+    # Create temporary or rendered directory for PNGs
+    rendered_dir = output_root / "rendered"
+    rendered_dir.mkdir(parents=True, exist_ok=True)
+
+    for pdf_path in pdf_files:
+        plan_id = pdf_path.stem
+        print(f"\nProcessing plan: {plan_id}...")
+
+        # 1. Render PDF page 0 to PNG
+        png_path = rendered_dir / f"{plan_id}.png"
+        print(f"  Rendering {pdf_path.name} to {png_path.name} at 300 DPI...")
+        try:
+            doc = fitz.open(pdf_path)
+            page = doc[0]
+            mat = fitz.Matrix(300 / 72, 300 / 72)  # 300 DPI
+            pix = page.get_pixmap(matrix=mat)
+            pix.save(png_path)
+            doc.close()
+            print(f"    Saved rendered PNG ({pix.width} x {pix.height} px)")
+        except Exception as render_err:
+            print(f"  Error rendering PDF {pdf_path.name}: {render_err}", file=sys.stderr)
+            continue
+
+        # 2. Run Candidate Extraction Pipeline
+        print(f"  Running candidate extraction pipeline on {png_path.name}...")
+        try:
+            candidates = run_png_extraction_pipeline(
+                image_path=png_path,
+                plan_id=plan_id,
+                output_root=output_root,
+                clean_red=args.clean_red
+            )
+            print(f"    Extracted {len(candidates)} candidate(s).")
+            candidates_path = output_root / "candidates" / f"{plan_id}_candidates.json"
+            print(f"    Saved candidates to: {candidates_path}")
+        except Exception as e:
+            print(f"  Error running extraction pipeline for {plan_id}: {e}", file=sys.stderr)
+
+    print("\nAll PDFs processed successfully.")
+
+
+if __name__ == "__main__":
+    main()
