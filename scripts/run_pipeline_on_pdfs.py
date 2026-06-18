@@ -19,6 +19,61 @@ except ImportError:
     sys.exit(1)
 
 from src.candidates.png_candidate_extractor import run_png_extraction_pipeline
+from server.app.models import Opening, WeightConfig, GEOMETRY_ROUND, GEOMETRY_RECTANGULAR
+from server.app.services.csv_export import serialize_csv, to_csv_row
+
+
+def parse_floor(plan_id: str) -> str:
+    # E.g., SP_U1_0005 -> U1
+    parts = plan_id.split("_")
+    for part in parts:
+        if part.startswith("U") and len(part) > 1 and part[1:].isdigit():
+            return part
+        if part.startswith("EG") or part.startswith("OG") or part.startswith("DG"):
+            return part
+    return "unknown"
+
+
+def candidate_to_opening(cand: dict, plan_id: str) -> Opening:
+    diameter_mm = cand.get("diameter_mm")
+    width_mm = cand.get("width_mm")
+    height_mm = cand.get("height_mm")
+
+    if diameter_mm is not None:
+        geometry = GEOMETRY_ROUND
+        length_cm = diameter_mm / 10.0
+        width_cm = diameter_mm / 10.0
+    else:
+        geometry = GEOMETRY_RECTANGULAR
+        length_cm = (width_mm / 10.0) if width_mm is not None else 0.0
+        width_cm = (height_mm / 10.0) if height_mm is not None else 0.0
+
+    # Default height_cm to 30 cm if not specified
+    height_cm = 30.0
+
+    label_type = cand.get("label_type")
+    opening_type = "Ceiling" if label_type in ("WDB", "DDB") else "Unknown"
+
+    floor = parse_floor(plan_id)
+    confidence = cand.get("confidence", 0.5)
+    status = cand.get("status", "needs_review")
+    review_required = (status == "needs_review" or confidence < 0.7)
+
+    return Opening(
+        geometry=geometry,
+        length_cm=length_cm,
+        width_cm=width_cm,
+        height_cm=height_cm,
+        quantity=1,
+        opening_type=opening_type,
+        floor=floor,
+        plan_name=plan_id,
+        source_pdf=f"{plan_id}.pdf",
+        grid_coordinate="grid_unknown",
+        color_zone_id="zone_unknown",
+        confidence=confidence,
+        review_required=review_required,
+    )
 
 
 def main() -> None:
@@ -92,6 +147,18 @@ def main() -> None:
             print(f"    Extracted {len(candidates)} candidate(s).")
             candidates_path = output_root / "candidates" / f"{plan_id}_candidates.json"
             print(f"    Saved candidates to: {candidates_path}")
+
+            # 3. Automatically export to final Contract CSV
+            contract_dir = output_root / "contract_exports"
+            contract_dir.mkdir(parents=True, exist_ok=True)
+            csv_path = contract_dir / f"{plan_id}_contract.csv"
+
+            openings = [candidate_to_opening(cand, plan_id) for cand in candidates]
+            config = WeightConfig()
+            rows = [to_csv_row(op, config) for op in openings]
+            csv_content = serialize_csv(rows)
+            csv_path.write_text(csv_content, encoding="utf-8")
+            print(f"    Saved contract CSV to: {csv_path}")
         except Exception as e:
             print(f"  Error running extraction pipeline for {plan_id}: {e}", file=sys.stderr)
 
