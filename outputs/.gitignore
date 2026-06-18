@@ -1,0 +1,4 @@
+# Ignore all files in outputs directory
+*
+# Except this gitignore
+!.gitignore
