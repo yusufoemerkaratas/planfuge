@@ -35,6 +35,26 @@ def parse_floor(plan_id: str) -> str:
     return "unknown"
 
 
+def is_point_in_polygon(x: float, y: float, polygon: list[list[float]]) -> bool:
+    num = len(polygon)
+    j = num - 1
+    c = False
+    for i in range(num):
+        if ((polygon[i][1] > y) != (polygon[j][1] > y)) and \
+                (x < (polygon[j][0] - polygon[i][0]) * (y - polygon[i][1]) / (polygon[j][1] - polygon[i][1]) + polygon[i][0]):
+            c = not c
+        j = i
+    return c
+
+
+def compute_color_zone(x: float, y: float, plan_config: PlanConfig) -> str:
+    for zone in plan_config.color_zones:
+        poly = zone.get("polygon")
+        if poly and is_point_in_polygon(x, y, poly):
+            return zone.get("zone_id", "zone_unknown")
+    return "zone_unknown"
+
+
 def compute_grid_coordinate(x: float, y: float, plan_config: PlanConfig) -> str:
     if not plan_config.grid_anchors:
         return "grid_unknown"
@@ -110,6 +130,7 @@ def candidate_to_opening(cand: dict, plan_id: str, plan_config: PlanConfig) -> O
     cy = bbox[1] + bbox[3] / 2
     
     grid_coord = compute_grid_coordinate(cx, cy, plan_config)
+    color_zone = compute_color_zone(cx, cy, plan_config)
 
     return Opening(
         geometry=geometry,
@@ -122,7 +143,7 @@ def candidate_to_opening(cand: dict, plan_id: str, plan_config: PlanConfig) -> O
         plan_name=plan_id,
         source_pdf=f"{plan_id}.pdf",
         grid_coordinate=grid_coord,
-        color_zone_id="zone_unknown",
+        color_zone_id=color_zone,
         confidence=confidence,
         review_required=review_required,
     )
