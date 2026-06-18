@@ -1,0 +1,47 @@
+[
+  {
+    "example_id": "EX-001",
+    "plan_id": "SP_U1_0003",
+    "rough_bbox_image": [1510, 1820, 120, 60],
+    "target_type": "red_markup_region",
+    "expected_text": "WDB 815",
+    "is_opening_relevant": true,
+    "comment": "Starter example; refine after manual inspection."
+  },
+  {
+    "example_id": "EX-002",
+    "plan_id": "SP_U1_0003",
+    "rough_bbox_image": [7700, 3680, 290, 150],
+    "target_type": "red_markup_region",
+    "expected_text": "WDB 25/10",
+    "is_opening_relevant": true,
+    "comment": "Starter example; refine after manual inspection."
+  },
+  {
+    "example_id": "EX-003",
+    "plan_id": "SP_U1_0003",
+    "rough_bbox_image": [9500, 7200, 330, 200],
+    "target_type": "red_markup_region",
+    "expected_text": "WDB 60/20 OK -80 UKRD",
+    "is_opening_relevant": true,
+    "comment": "Starter example; refine after manual inspection."
+  },
+  {
+    "example_id": "EX-004",
+    "plan_id": "SP_U1_0003",
+    "rough_bbox_image": [500, 500, 100, 100],
+    "target_type": "red_markup_region",
+    "expected_text": "WDB 10/10",
+    "is_opening_relevant": true,
+    "comment": "Starter example representing a missed region."
+  },
+  {
+    "example_id": "EX-005",
+    "plan_id": "SP_U1_0003",
+    "rough_bbox_image": [1100, 6450, 160, 220],
+    "target_type": "red_markup_region",
+    "expected_text": "",
+    "is_opening_relevant": false,
+    "comment": "Starter example representing a non-relevant annotation."
+  }
+]
