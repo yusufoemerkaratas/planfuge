@@ -196,6 +196,36 @@ class ApiTests(unittest.TestCase):
         self.assertFalse(data["exists"])
         self.assertTrue(any("not found" in w for w in data["warnings"]))
 
+    def test_save_reviews_endpoint_saves_payload(self) -> None:
+        import asyncio
+
+        payload = [
+            {"candidate_id": "cand-001", "status": "verified"},
+            {"candidate_id": "cand-002", "status": "rejected"},
+        ]
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+
+            async def run_request() -> dict:
+                app.state.project_root = root
+                transport = ASGITransport(app=app)
+                async with AsyncClient(transport=transport, base_url="http://test") as client:
+                    response = await client.post("/api/reviews/SP_U1_0003", json=payload)
+                    return response.json()
+
+            data = asyncio.run(run_request())
+
+            self.assertEqual(data["status"], "success")
+            self.assertTrue("SP_U1_0003_reviewed_candidates.json" in data["path"])
+
+            # Verify side effect
+            saved_file = Path(data["path"])
+            self.assertTrue(saved_file.exists())
+            saved_data = json.loads(saved_file.read_text())
+            self.assertEqual(saved_data["plan_id"], "SP_U1_0003")
+            self.assertEqual(saved_data["candidate_count"], 2)
+
 
 if __name__ == "__main__":
     unittest.main()

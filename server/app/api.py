@@ -1,5 +1,6 @@
 from dataclasses import asdict
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI
 from fastapi.responses import Response
@@ -17,8 +18,9 @@ from server.app.services.calculations import (
     get_review_status,
 )
 from server.app.services.candidate_loader import load_candidates, load_sample_candidates
-from server.app.services.metadata_loader import load_metadata
 from server.app.services.csv_export import CSV_COLUMNS, serialize_csv, to_csv_row
+from server.app.services.metadata_loader import load_metadata
+from server.app.services.review_saver import save_reviewed_candidates
 
 
 app = FastAPI(title="Plan2Print API", version="0.1.0")
@@ -107,4 +109,9 @@ def get_candidates(plan_id: str) -> dict:
 def get_metadata(plan_id: str) -> dict:
     result = load_metadata(_get_project_root(), plan_id)
     return asdict(result)
+
+
+@app.post("/api/reviews/{plan_id}")
+def save_reviews(plan_id: str, candidates: list[dict[str, Any]]) -> dict:
+    return save_reviewed_candidates(_get_project_root(), plan_id, candidates)
 
