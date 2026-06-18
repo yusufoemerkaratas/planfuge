@@ -5,7 +5,10 @@
 !fixtures/.gitkeep
 !imports/
 !imports/.gitkeep
+!imports/*.pdf
 !exports/
 !exports/.gitkeep
 !samples/
 !samples/.gitkeep
+!samples/*.png
+!*.py
