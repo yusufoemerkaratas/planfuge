@@ -5,8 +5,8 @@
     "rough_bbox_image": [
       1344,
       5926,
-      1494,
-      6102
+      150,
+      176
     ],
     "target_type": "opening_label",
     "expected_text": "WDB",
@@ -19,8 +19,8 @@
     "rough_bbox_image": [
       1507,
       6756,
-      1656,
-      7054
+      149,
+      298
     ],
     "target_type": "opening_label",
     "expected_text": "DDB84/94",
@@ -33,8 +33,8 @@
     "rough_bbox_image": [
       1327,
       7378,
-      1477,
-      7694
+      150,
+      316
     ],
     "target_type": "opening_label",
     "expected_text": "DDB160/30",
@@ -47,8 +47,8 @@
     "rough_bbox_image": [
       1958,
       7761,
-      2103,
-      7932
+      145,
+      171
     ],
     "target_type": "opening_label",
     "expected_text": "DDB",
@@ -61,8 +61,8 @@
     "rough_bbox_image": [
       5203,
       8154,
-      5353,
-      8451
+      150,
+      297
     ],
     "target_type": "opening_label",
     "expected_text": "DDB25/40",
@@ -75,8 +75,8 @@
     "rough_bbox_image": [
       1592,
       5958,
-      1741,
-      6134
+      149,
+      176
     ],
     "target_type": "opening_label",
     "expected_text": "WDB",
@@ -89,8 +89,8 @@
     "rough_bbox_image": [
       1406,
       5751,
-      1556,
-      5945
+      150,
+      194
     ],
     "target_type": "non_opening_label",
     "expected_text": "UKRD",
@@ -103,8 +103,8 @@
     "rough_bbox_image": [
       591,
       6622,
-      740,
-      6769
+      149,
+      147
     ],
     "target_type": "non_opening_label",
     "expected_text": "RA",

@@ -235,7 +235,12 @@ def run_png_extraction_pipeline(
         validate_candidate(c)
         
     # 7. Save candidates
+    payload = {
+        "plan_id": plan_id,
+        "candidate_count": len(candidates),
+        "candidates": candidates,
+    }
     with open(candidates_path, "w", encoding="utf-8") as f:
-        json.dump(candidates, f, indent=2, ensure_ascii=False)
-        
+        json.dump(payload, f, indent=2, ensure_ascii=False)
+
     return candidates

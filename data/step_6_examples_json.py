@@ -24,12 +24,11 @@ for words_file in sorted(os.listdir(WORDS_FOLDER)):
         if pat_opening.search(w["text"]) and count < 8:
             # Scale coordinates from PDF points to PNG pixels (300 DPI / 72 DPI = 4.17x)
             scale = 300 / 72
-            bbox = [
-                max(0, int(w["x0"] * scale) - PADDING),
-                max(0, int(w["y0"] * scale) - PADDING),
-                int(w["x1"] * scale) + PADDING,
-                int(w["y1"] * scale) + PADDING
-            ]
+            x0 = max(0, int(w["x0"] * scale) - PADDING)
+            y0 = max(0, int(w["y0"] * scale) - PADDING)
+            x1 = int(w["x1"] * scale) + PADDING
+            y1 = int(w["y1"] * scale) + PADDING
+            bbox = [x0, y0, x1 - x0, y1 - y0]  # [x, y, w, h] — matches bbox_image contract
             examples.append({
                 "example_id": f"{plan_id}-EX-{count+1:02d}",
                 "plan_id": plan_id,

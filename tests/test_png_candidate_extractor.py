@@ -235,14 +235,21 @@ class TestPngCandidateExtractor(unittest.TestCase):
             self.assertEqual(c["candidate_id"], "OP-001")
             self.assertEqual(c["source"], "png_red_annotation_region")
             self.assertEqual(c["confidence"], 0.3)
-            
+
             # Check directories
             self.assertTrue((Path(tmp_dir) / "out" / "crops").exists())
             self.assertTrue((Path(tmp_dir) / "out" / "debug").exists())
             self.assertTrue((Path(tmp_dir) / "out" / "candidates").exists())
-            
-            # Check files saved
-            self.assertTrue((Path(tmp_dir) / "out" / "candidates" / "mock_plan_candidates.json").exists())
+
+            # Verify saved JSON has the server-compatible dict format
+            candidates_path = Path(tmp_dir) / "out" / "candidates" / "mock_plan_candidates.json"
+            self.assertTrue(candidates_path.exists())
+            with open(candidates_path, encoding="utf-8") as f:
+                payload = json.load(f)
+            self.assertIsInstance(payload, dict)
+            self.assertEqual(payload["plan_id"], "mock_plan")
+            self.assertEqual(payload["candidate_count"], 1)
+            self.assertIsInstance(payload["candidates"], list)
 
 
 if __name__ == "__main__":

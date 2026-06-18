@@ -5,8 +5,8 @@
     "rough_bbox_image": [
       3062,
       981,
-      3197,
-      1149
+      135,
+      168
     ],
     "target_type": "opening_label",
     "expected_text": "WDB",
@@ -19,8 +19,8 @@
     "rough_bbox_image": [
       2120,
       4254,
-      2269,
-      4551
+      149,
+      297
     ],
     "target_type": "opening_label",
     "expected_text": "DDB20/50",
@@ -33,8 +33,8 @@
     "rough_bbox_image": [
       996,
       4913,
-      1145,
-      5211
+      149,
+      298
     ],
     "target_type": "opening_label",
     "expected_text": "DDB20/20",
@@ -47,8 +47,8 @@
     "rough_bbox_image": [
       3803,
       8427,
-      3948,
-      8598
+      145,
+      171
     ],
     "target_type": "opening_label",
     "expected_text": "DDB",
@@ -61,8 +61,8 @@
     "rough_bbox_image": [
       3165,
       8753,
-      3314,
-      9050
+      149,
+      297
     ],
     "target_type": "opening_label",
     "expected_text": "DDB60/40",
@@ -75,8 +75,8 @@
     "rough_bbox_image": [
       2775,
       3246,
-      3109,
-      3395
+      334,
+      149
     ],
     "target_type": "opening_label",
     "expected_text": "DDB130/140",
@@ -89,8 +89,8 @@
     "rough_bbox_image": [
       2756,
       867,
-      2890,
-      1138
+      134,
+      271
     ],
     "target_type": "non_opening_label",
     "expected_text": "UKRD/OKRB",
@@ -103,8 +103,8 @@
     "rough_bbox_image": [
       1123,
       6730,
-      1272,
-      6877
+      149,
+      147
     ],
     "target_type": "non_opening_label",
     "expected_text": "RA",
