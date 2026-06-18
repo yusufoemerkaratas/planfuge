@@ -17,17 +17,17 @@ def parse_opening_label(text: str) -> dict[str, Any] | None:
     """
     normalized = _normalize_text(text)
     label_type = _parse_label_type(normalized)
+    width_mm, height_mm = _parse_rectangular_dimensions(normalized)
+    diameter_mm = _parse_diameter(normalized)
 
-    if label_type is None:
+    if label_type is None and width_mm is None and diameter_mm is None:
         return None
-
-    width_mm, height_mm = _parse_rectangular_dimensions(normalized, label_type)
 
     return {
         "label_type": label_type,
         "width_mm": width_mm,
         "height_mm": height_mm,
-        "diameter_mm": _parse_diameter(normalized),
+        "diameter_mm": diameter_mm,
         "ra_value": _parse_signed_value(normalized, "RA"),
         "ok_value": _parse_signed_value(normalized, "OK"),
         "reference": _parse_reference(normalized),
@@ -84,8 +84,8 @@ def _parse_label_type(text: str) -> str | None:
     return None
 
 
-def _parse_rectangular_dimensions(text: str, label_type: str) -> tuple[int | None, int | None]:
-    pattern = rf"(?:\b{label_type}\s*)?(\d{{1,3}})\s*/\s*(\d{{1,3}})"
+def _parse_rectangular_dimensions(text: str) -> tuple[int | None, int | None]:
+    pattern = r"(?<!\d)(\d{1,3})\s*/\s*(\d{1,3})(?!\d)"
     match = re.search(pattern, text)
 
     if not match:
