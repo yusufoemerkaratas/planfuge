@@ -17,6 +17,9 @@ class PlanConfig:
         # Grid layout configuration
         grid_data = data.get("grid", {})
         self.grid_anchors = grid_data.get("anchors")
+        # Detailed per-column / per-row pixel positions from auto_config
+        self.column_positions: list[list] = grid_data.get("column_positions", [])
+        self.row_positions: list[list] = grid_data.get("row_positions", [])
         
         # Color zones configuration
         self.color_zones: list[dict[str, Any]] = data.get("color_zones", [])

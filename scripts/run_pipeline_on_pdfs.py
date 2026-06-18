@@ -22,6 +22,7 @@ from src.candidates.png_candidate_extractor import run_png_extraction_pipeline
 from server.app.models import Opening, WeightConfig, GEOMETRY_ROUND, GEOMETRY_RECTANGULAR
 from server.app.services.csv_export import serialize_csv, to_csv_row
 from src.config.plan_config import PlanConfig
+from src.config.auto_config import auto_generate_config
 
 
 def parse_floor(plan_id: str) -> str:
@@ -56,6 +57,37 @@ def compute_color_zone(x: float, y: float, plan_config: PlanConfig) -> str:
 
 
 def compute_grid_coordinate(x: float, y: float, plan_config: PlanConfig) -> str:
+    """Return a grid cell label like 'C-4' for a candidate at pixel (x, y).
+
+    Prefers the detailed column_positions / row_positions lists produced by
+    auto_config. Falls back to the legacy linear-interpolation method when
+    only coarse anchors are available.
+    """
+
+    def _find_nearest_label(positions: list, value: float) -> str | None:
+        """Binary-search the sorted positions list for the closest cell."""
+        if not positions:
+            return None
+        # positions is [[pixel, label], ...]
+        pixels = [p[0] for p in positions]
+        labels = [p[1] for p in positions]
+        # Find index of the cell boundary just to the left of value
+        lo, hi = 0, len(pixels) - 1
+        while lo < hi:
+            mid = (lo + hi + 1) // 2
+            if pixels[mid] <= value:
+                lo = mid
+            else:
+                hi = mid - 1
+        return labels[lo]
+
+    col_label = _find_nearest_label(plan_config.column_positions, x)
+    row_label = _find_nearest_label(plan_config.row_positions, y)
+
+    if col_label is not None and row_label is not None:
+        return f"{col_label}-{row_label}"
+
+    # ---- Legacy anchor-based fallback ----
     if not plan_config.grid_anchors:
         return "grid_unknown"
         
@@ -97,6 +129,7 @@ def compute_grid_coordinate(x: float, y: float, plan_config: PlanConfig) -> str:
         return f"{letter}-{n}"
     except Exception:
         return "grid_unknown"
+
 
 
 def candidate_to_opening(cand: dict, plan_id: str, plan_config: PlanConfig) -> Opening:
@@ -279,6 +312,17 @@ def main() -> None:
             print(f"  Error rendering PDF {pdf_path.name}: {render_err}", file=sys.stderr)
             continue
 
+        # 1b. Auto-generate plan config if one doesn't already exist
+        try:
+            auto_generate_config(
+                plan_id=plan_id,
+                png_path=png_path,
+                project_root=REPO_ROOT,
+                overwrite=False,
+            )
+        except Exception as cfg_err:
+            print(f"  Warning: Auto-config generation failed: {cfg_err}", file=sys.stderr)
+
         # 2. Run Candidate Extraction Pipeline
         print(f"  Running candidate extraction pipeline on {png_path.name}...")
         try:
@@ -297,7 +341,7 @@ def main() -> None:
             contract_dir.mkdir(parents=True, exist_ok=True)
             csv_path = contract_dir / f"{plan_id}_contract.csv"
 
-            plan_config = PlanConfig.load_for_plan(REPO_ROOT, plan_id)
+            plan_config = PlanConfig.load_for_plan(REPO_ROOT, plan_id)  # uses auto-generated config if no manual one
             openings = [candidate_to_opening(cand, plan_id, plan_config) for cand in candidates]
             grouped_openings = group_openings(openings, candidates)
             config = WeightConfig()
