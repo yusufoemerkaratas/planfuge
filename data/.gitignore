@@ -15,6 +15,7 @@
 !pages/*.png
 !metadata/
 !metadata/.gitkeep
+!metadata/*.json
 !annotations/
 !annotations/.gitkeep
 !*.py
