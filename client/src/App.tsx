@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { LayoutDashboard, FileCheck, Save, Download, FileJson, AlertCircle, Maximize2, Loader2, CheckCircle2, Image as ImageIcon, Layers } from 'lucide-react'
+import { parseMetadataResponse, type MetadataResult } from './metadata'
+import { canSaveCandidates, candidateSourceFromApi, candidateSourceLabel, type CandidateSource } from './sampleMode'
 
 export interface Candidate {
   candidate_id: string;
@@ -9,12 +11,30 @@ export interface Candidate {
   width_mm: number | null;
   height_mm: number | null;
   diameter_mm: number | null;
-  ra_value: string | null;
-  ok_value: string | null;
+  ra_value: string | number | null;
+  ok_value: string | number | null;
   reference: string | null;
   review_comment: string | null;
   crop_path: string | null;
-  [key: string]: any;
+}
+
+type EditableCandidateField = 'status' | 'raw_text' | 'label_type' | 'width_mm' | 'height_mm' | 'diameter_mm' | 'ra_value' | 'ok_value' | 'reference' | 'review_comment'
+type EditableCandidateValue = string | number | null
+
+interface PipelineStatus {
+  files: {
+    page_image: boolean
+    overlay_image: boolean
+    candidates_json: boolean
+    review_json: boolean
+    export_json: boolean
+  }
+}
+
+function candidateSourceBadgeClass(source: CandidateSource): string {
+  if (source === 'sample') return 'bg-amber-100 text-amber-800'
+  if (source === 'review') return 'bg-blue-100 text-blue-800'
+  return 'bg-slate-100 text-slate-700'
 }
 
 function App() {
@@ -23,19 +43,35 @@ function App() {
   const [loadingPlans, setLoadingPlans] = useState(true)
   
   // Plan-specific states
-  const [metadata, setMetadata] = useState<{image_width?: number, image_height?: number, scale?: number} | null>(null)
+  const [metadataResult, setMetadataResult] = useState<MetadataResult | null>(null)
   const [imageError, setImageError] = useState(false)
-  const [pipelineStatus, setPipelineStatus] = useState<any>(null)
+  const [pipelineStatus, setPipelineStatus] = useState<PipelineStatus | null>(null)
   const [showOverlay, setShowOverlay] = useState(false)
 
   // Candidates states
   const [candidates, setCandidates] = useState<Candidate[]>([])
-  const [loadingCandidates, setLoadingCandidates] = useState(false)
+  const [loadingCandidates, setLoadingCandidates] = useState(true)
+  const [candidateSource, setCandidateSource] = useState<CandidateSource>('raw')
+  const [candidateReloadKey, setCandidateReloadKey] = useState(0)
   const [isSaving, setIsSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null)
   const [cropError, setCropError] = useState(false)
   const [isExporting, setIsExporting] = useState<{csv: boolean, json: boolean}>({csv: false, json: false})
+
+  const handlePlanSelection = (planId: string) => {
+    setImageError(false)
+    setMetadataResult(null)
+    setCandidates([])
+    setCandidateSource('raw')
+    setPipelineStatus(null)
+    setShowOverlay(false)
+    setLoadingCandidates(true)
+    setSaveSuccess(false)
+    setSelectedCandidateId(null)
+    setCropError(false)
+    setActivePlan(planId)
+  }
 
   // Fetch available plans on mount
   useEffect(() => {
@@ -56,23 +92,18 @@ function App() {
   // Fetch metadata, candidates and status when activePlan changes
   useEffect(() => {
     if (!activePlan) return
-    setImageError(false)
-    setMetadata(null)
-    setCandidates([])
-    setPipelineStatus(null)
-    setShowOverlay(false)
-    setLoadingCandidates(true)
-    setSaveSuccess(false)
-    setSelectedCandidateId(null)
-    setCropError(false)
     
     // 1. Fetch metadata
     fetch(`/api/metadata/${activePlan}`)
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
-        if (data) setMetadata(data)
+      .then(res => {
+        if (!res.ok) throw new Error(`Metadata request failed (${res.status})`)
+        return res.json()
       })
-      .catch(err => console.error("Failed to load metadata:", err))
+      .then(data => setMetadataResult(parseMetadataResponse(data)))
+      .catch(err => {
+        console.error("Failed to load metadata:", err)
+        setMetadataResult({ kind: 'error', message: err.message })
+      })
 
     // 2. Fetch pipeline status
     fetch(`/api/status/${activePlan}`)
@@ -91,6 +122,7 @@ function App() {
       .then(data => {
         if (data && data.candidates && data.candidates.length > 0) {
           setCandidates(data.candidates)
+          setCandidateSource(candidateSourceFromApi(data.source))
           setLoadingCandidates(false)
         } else {
           throw new Error('Empty draft')
@@ -102,20 +134,16 @@ function App() {
           .then(res => res.ok ? res.json() : { candidates: [] })
           .then(data => {
             setCandidates(data.candidates || [])
+            setCandidateSource(candidateSourceFromApi(data.source))
           })
           .catch(err => console.error("Failed to load candidates:", err))
           .finally(() => setLoadingCandidates(false))
       })
 
-  }, [activePlan])
-
-  // Reset crop error when selection changes
-  useEffect(() => {
-    setCropError(false)
-  }, [selectedCandidateId])
+  }, [activePlan, candidateReloadKey])
 
   const handleSave = async () => {
-    if (!activePlan || candidates.length === 0) return
+    if (!activePlan || candidates.length === 0 || !canSaveCandidates(candidateSource)) return
     setIsSaving(true)
     setSaveSuccess(false)
     try {
@@ -141,6 +169,29 @@ function App() {
     } finally {
       setIsSaving(false)
     }
+  }
+
+  const loadSampleCandidates = async () => {
+    setLoadingCandidates(true)
+    try {
+      const response = await fetch('/api/candidates/sample')
+      if (!response.ok) throw new Error(`Sample candidate request failed (${response.status})`)
+      const data = await response.json()
+      setCandidates(data.candidates || [])
+      setCandidateSource('sample')
+      setSelectedCandidateId(null)
+      setCropError(false)
+    } catch (error) {
+      console.error('Failed to load sample candidates:', error)
+    } finally {
+      setLoadingCandidates(false)
+    }
+  }
+
+  const exitSampleMode = () => {
+    setCandidateSource('raw')
+    setLoadingCandidates(true)
+    setCandidateReloadKey(key => key + 1)
   }
 
   const handleExport = async (type: 'csv' | 'json') => {
@@ -176,13 +227,19 @@ function App() {
     }
   }
 
-  const handleCellChange = (id: string, field: keyof Candidate, value: any) => {
+  const handleCellChange = (id: string, field: EditableCandidateField, value: EditableCandidateValue) => {
     setCandidates(prev => 
       prev.map(c => c.candidate_id === id ? { ...c, [field]: value } : c)
     )
   }
 
+  const handleCandidateSelection = (candidateId: string) => {
+    setSelectedCandidateId(candidateId)
+    setCropError(false)
+  }
+
   const selectedCandidate = candidates.find(c => c.candidate_id === selectedCandidateId)
+  const metadata = metadataResult?.kind === 'available' ? metadataResult.metadata : null
   
   // Helper to extract filename from crop_path
   const getCropFilename = (path: string | null) => {
@@ -192,7 +249,7 @@ function App() {
   }
 
   // Helper for text inputs
-  const TextInput = ({ candidate, field, type = "text" }: { candidate: Candidate, field: keyof Candidate, type?: string }) => (
+  const TextInput = ({ candidate, field, type = "text" }: { candidate: Candidate, field: EditableCandidateField, type?: string }) => (
     <input
       type={type}
       value={candidate[field] === null ? "" : candidate[field]}
@@ -238,7 +295,7 @@ function App() {
               {plans.map((plan_id) => (
                 <button
                   key={plan_id}
-                  onClick={() => setActivePlan(plan_id)}
+                  onClick={() => handlePlanSelection(plan_id)}
                   className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-md font-medium transition-all duration-200 ${
                     activePlan === plan_id 
                       ? "bg-white text-[#FE0000] shadow-sm translate-x-1" 
@@ -264,10 +321,22 @@ function App() {
         <header className="h-16 flex items-center px-8 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10 shrink-0">
           <h2 className="text-lg font-medium text-foreground flex items-center gap-3">
             {activePlan ? `Dashboard — ${activePlan}` : "Dashboard"}
-            {metadata && metadata.image_width && metadata.image_height && (
+            {metadata?.image_width_px && metadata.image_height_px && (
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground border border-border">
                 <Maximize2 className="w-3 h-3" />
-                {metadata.image_width} x {metadata.image_height}
+                {metadata.image_width_px} × {metadata.image_height_px} px
+              </span>
+            )}
+            {metadata?.scale_text_visible && (
+              <span className="text-xs text-muted-foreground">Scale: {metadata.scale_text_visible}</span>
+            )}
+            {metadata?.source_type && (
+              <span className="text-xs text-muted-foreground">Source: {metadata.source_type}</span>
+            )}
+            {metadataResult && metadataResult.kind !== 'available' && (
+              <span className={`inline-flex items-center gap-1 text-xs ${metadataResult.kind === 'error' ? 'text-red-600' : 'text-amber-600'}`}>
+                <AlertCircle className="w-3 h-3" />
+                {metadataResult.message}
               </span>
             )}
           </h2>
@@ -341,8 +410,20 @@ function App() {
                 {/* Bottom Half: Editable Candidate Table */}
                 <div className="flex-[2] bg-background flex flex-col min-h-0">
                   <div className="px-4 py-3 border-b border-border flex items-center justify-between bg-card">
-                    <h3 className="font-semibold text-sm">Detected Candidates ({candidates.length})</h3>
-                    <p className="text-xs text-muted-foreground">Click a row to view crop preview.</p>
+                    <div className="flex items-center gap-3">
+                      <h3 className="font-semibold text-sm">Detected Candidates ({candidates.length})</h3>
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${candidateSourceBadgeClass(candidateSource)}`}>
+                        {candidateSourceLabel(candidateSource)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {candidateSource === 'sample' ? (
+                        <button onClick={exitSampleMode} className="text-xs font-medium text-primary hover:underline">Return to real candidates</button>
+                      ) : (
+                        <button onClick={loadSampleCandidates} className="text-xs font-medium text-primary hover:underline">Use sample candidates</button>
+                      )}
+                      <p className="text-xs text-muted-foreground">Click a row to view crop preview.</p>
+                    </div>
                   </div>
                   
                   <div className="flex-1 overflow-auto p-0">
@@ -377,7 +458,7 @@ function App() {
                             {candidates.map((c) => (
                               <tr 
                                 key={c.candidate_id} 
-                                onClick={() => setSelectedCandidateId(c.candidate_id)}
+                                onClick={() => handleCandidateSelection(c.candidate_id)}
                                 className={`transition-colors cursor-pointer ${selectedCandidateId === c.candidate_id ? 'bg-primary/10 hover:bg-primary/20' : 'hover:bg-muted/30'}`}
                               >
                                 <td className="px-4 py-2 whitespace-nowrap text-xs font-medium text-muted-foreground border-r border-border/50 bg-muted/5">
@@ -545,7 +626,7 @@ function App() {
                   <div className="grid grid-cols-2 gap-3">
                     <button 
                       onClick={handleSave}
-                      disabled={isSaving || candidates.length === 0}
+                      disabled={isSaving || candidates.length === 0 || !canSaveCandidates(candidateSource)}
                       className="col-span-2 flex items-center justify-center gap-2 p-3 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm font-medium"
                     >
                       {isSaving ? (
@@ -555,7 +636,7 @@ function App() {
                       ) : (
                         <Save className="w-4 h-4" />
                       )}
-                      <span>{isSaving ? 'Saving...' : saveSuccess ? 'Saved!' : 'Review Detections'}</span>
+                      <span>{candidateSource === 'sample' ? 'Sample data is not saved' : isSaving ? 'Saving...' : saveSuccess ? 'Saved!' : 'Review Detections'}</span>
                     </button>
                     <button 
                       onClick={() => handleExport('csv')}

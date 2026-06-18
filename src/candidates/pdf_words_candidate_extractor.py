@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import Any
 
 from src.candidates.opening_label_parser import parse_opening_label
+from src.config.plan_config import PlanConfig
+from src.config.spatial_mapping import assign_candidate_spatial_fields
 
 ANCHOR_PREFIXES = ("WDB", "DDB", "UZDB", "DDP")
 
@@ -21,14 +23,19 @@ def extract_candidates_json(
     words_path: str | Path,
     output_path: str | Path,
     plan_id: str | None = None,
+    project_root: str | Path | None = None,
 ) -> dict[str, Any]:
     """Load words JSON, extract candidates, and save candidate JSON."""
     words_path = Path(words_path)
     output_path = Path(output_path)
     words = json.loads(words_path.read_text(encoding="utf-8"))
     candidates = extract_candidates_from_words(words)
+    resolved_plan_id = plan_id or _plan_id_from_words_path(words_path)
+    if project_root is not None:
+        config = PlanConfig.load_for_plan(Path(project_root), resolved_plan_id)
+        assign_candidate_spatial_fields(candidates, config)
     result = {
-        "plan_id": plan_id or _plan_id_from_words_path(words_path),
+        "plan_id": resolved_plan_id,
         "candidate_count": len(candidates),
         "candidates": candidates,
     }

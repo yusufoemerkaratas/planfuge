@@ -1,0 +1,27 @@
+{
+  "plan_id": "EXAMPLE_PLAN",
+  "scale": 50,
+  "default_height_cm": 30.0,
+  "grid": {
+    "anchors": {
+      "top_left_pixel": [0, 0],
+      "top_left_coord": "A-1",
+      "bottom_right_pixel": [1000, 1000],
+      "bottom_right_coord": "B-2"
+    },
+    "column_positions": [[0, "A"], [1000, "B"]],
+    "row_positions": [[0, "1"], [1000, "2"]],
+    "points": [
+      [0, 0, "A-1"],
+      [1000, 20, "B-1"],
+      [-20, 1000, "A-2"],
+      [980, 1020, "B-2"]
+    ]
+  },
+  "color_zones": [
+    {
+      "zone_id": "zone-example",
+      "polygon": [[0, 0], [1000, 0], [1000, 1000], [0, 1000]]
+    }
+  ]
+}

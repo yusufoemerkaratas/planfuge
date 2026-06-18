@@ -13,6 +13,8 @@
 !samples/.gitkeep
 !samples/*.png
 !samples/*.json
+!config/
+!config/example_plan_config.json
 !pages/
 !pages/*.png
 !metadata/
@@ -26,4 +28,3 @@
 !words/
 !words/*.json
 !*.py
-

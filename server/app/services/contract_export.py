@@ -9,9 +9,11 @@ import math
 import re
 from pathlib import Path
 
+from src.config.plan_config import PlanConfig
+
 DENSITY_KG_M3 = 440.0
 MAX_WEIGHT_KG = 25.0
-DEFAULT_HEIGHT_CM = 30.0
+MAX_GROUP_DISTANCE_PX = 2000.0
 _HEIGHT_PAT = re.compile(r"d\s*=\s*(\d+)\s*cm", re.IGNORECASE)
 
 CONTRACT_COLUMNS = [
@@ -44,19 +46,23 @@ def _load_height_labels(project_root: Path, plan_id: str) -> list[dict]:
     return labels
 
 
-def _nearest_height(bbox_pdf: list | None, labels: list[dict]) -> float:
+def _nearest_height(
+    bbox_pdf: list | None,
+    labels: list[dict],
+    default_height_cm: float,
+) -> tuple[float, bool]:
     if not bbox_pdf or len(bbox_pdf) < 4 or not labels:
-        return DEFAULT_HEIGHT_CM
+        return default_height_cm, True
     cx = (bbox_pdf[0] + bbox_pdf[2]) / 2
     cy = (bbox_pdf[1] + bbox_pdf[3]) / 2
     best_dist = float("inf")
-    best_h = DEFAULT_HEIGHT_CM
+    best_h = default_height_cm
     for h in labels:
         d = math.hypot(h["cx"] - cx, h["cy"] - cy)
         if d < best_dist:
             best_dist = d
             best_h = float(h["height_cm"])
-    return best_h
+    return best_h, False
 
 
 def _volume_cm3(geometry: str, length_cm: float, width_cm: float, height_cm: float) -> float:
@@ -82,8 +88,33 @@ def _opening_type(label_type: str | None) -> str:
     return "Unknown"
 
 
+def _verified_candidates(candidates: list[dict]) -> list[dict]:
+    return [candidate for candidate in candidates if candidate.get("status") == "verified"]
+
+
+def _candidate_center(candidate: dict) -> tuple[float, float] | None:
+    bbox_image = candidate.get("bbox_image")
+    if not bbox_image or len(bbox_image) < 4:
+        return None
+    return bbox_image[0] + bbox_image[2] / 2, bbox_image[1] + bbox_image[3] / 2
+
+
+def _opening_group_key(opening: dict) -> tuple:
+    return (
+        opening["floor"],
+        opening["plan_name"],
+        opening["length_cm"],
+        opening["width_cm"],
+        opening["height_cm"],
+        opening["geometry"],
+        opening["opening_type"],
+        opening["review_required"],
+    )
+
+
 def _build_rows(project_root: Path, plan_id: str, candidates: list[dict]) -> list[dict]:
     height_labels = _load_height_labels(project_root, plan_id)
+    plan_config = PlanConfig.load_for_plan(project_root, plan_id)
     floor = _parse_floor(plan_id)
 
     openings: list[dict] = []
@@ -104,8 +135,13 @@ def _build_rows(project_root: Path, plan_id: str, candidates: list[dict]) -> lis
             length_cm = round((width_mm or 0) / 10.0, 1)
             width_cm = round((height_mm or 0) / 10.0, 1)
 
-        height_cm = _nearest_height(c.get("bbox_pdf"), height_labels)
+        height_cm, uses_default_height = _nearest_height(
+            c.get("bbox_pdf"),
+            height_labels,
+            plan_config.default_height_cm,
+        )
         o_type = _opening_type(c.get("label_type"))
+        center = _candidate_center(c)
 
         openings.append({
             "floor": floor,
@@ -115,23 +151,34 @@ def _build_rows(project_root: Path, plan_id: str, candidates: list[dict]) -> lis
             "height_cm": height_cm,
             "geometry": geometry,
             "opening_type": o_type,
+            "center": center,
+            "review_required": uses_default_height or c.get("confidence", 0.5) < 0.60,
         })
 
-    # Group identical openings
-    groups: dict[tuple, int] = {}
+    groups: list[dict] = []
     for o in openings:
-        key = (
-            o["floor"], o["plan_name"],
-            o["length_cm"], o["width_cm"], o["height_cm"],
-            o["geometry"], o["opening_type"],
-        )
-        groups[key] = groups.get(key, 0) + 1
+        key = _opening_group_key(o)
+        for group in groups:
+            if group["key"] != key or o["center"] is None or group["center"] is None:
+                continue
+            if math.dist(o["center"], group["center"]) <= MAX_GROUP_DISTANCE_PX:
+                group["count"] += 1
+                break
+        else:
+            groups.append({"key": key, "center": o["center"], "count": 1})
 
     rows = []
-    for (floor, plan_name, length_cm, width_cm, height_cm, geometry, o_type), count in groups.items():
+    for group in groups:
+        floor, plan_name, length_cm, width_cm, height_cm, geometry, o_type, review_required = group["key"]
+        count = group["count"]
         vol = _volume_cm3(geometry, length_cm, width_cm, height_cm)
-        weight_kg = round(vol / 1_000_000 * DENSITY_KG_M3, 1)
-        status = "split_recommended" if weight_kg > MAX_WEIGHT_KG else "review_required"
+        weight_kg = round(vol / 1_000_000 * DENSITY_KG_M3 * count, 1)
+        if weight_kg > MAX_WEIGHT_KG:
+            status = "split_recommended"
+        elif review_required:
+            status = "review_required"
+        else:
+            status = "ready"
         rows.append({
             "Floor": floor,
             "Construction phase/Plan name": plan_name,
@@ -150,7 +197,7 @@ def _build_rows(project_root: Path, plan_id: str, candidates: list[dict]) -> lis
 
 def generate_contract_csv(project_root: Path, plan_id: str, candidates: list[dict]) -> bytes:
     """Return Excel-compatible UTF-8 BOM CSV bytes."""
-    rows = _build_rows(project_root, plan_id, candidates)
+    rows = _build_rows(project_root, plan_id, _verified_candidates(candidates))
     buf = io.StringIO()
     writer = csv.DictWriter(buf, fieldnames=CONTRACT_COLUMNS, lineterminator="\r\n")
     writer.writeheader()
@@ -160,7 +207,7 @@ def generate_contract_csv(project_root: Path, plan_id: str, candidates: list[dic
 
 def generate_contract_json(project_root: Path, plan_id: str, candidates: list[dict]) -> bytes:
     """Return JSON bytes of the contract-format openings."""
-    rows = _build_rows(project_root, plan_id, candidates)
+    rows = _build_rows(project_root, plan_id, _verified_candidates(candidates))
     payload = {
         "plan_id": plan_id,
         "opening_count": len(rows),

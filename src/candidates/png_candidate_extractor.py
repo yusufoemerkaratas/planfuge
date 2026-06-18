@@ -6,6 +6,8 @@ from src.candidates.opening_label_parser import parse_opening_label, normalize_o
 from src.image.red_annotation_detector import detect_red_regions, save_red_debug_mask
 from src.image.crop_regions import crop_red_regions
 from src.image.ocr_crops import run_ocr_on_crops
+from src.config.plan_config import PlanConfig
+from src.config.spatial_mapping import assign_candidate_spatial_fields
 
 logger = logging.getLogger(__name__)
 
@@ -189,7 +191,8 @@ def run_png_extraction_pipeline(
     min_area_px: int = 250,
     psm: int = 6,
     default_status: str = "needs_review",
-    clean_red: bool = False
+    clean_red: bool = False,
+    project_root: str | Path | None = None,
 ) -> list[dict[str, Any]]:
     """
     Orchestrate the end-to-end PNG extraction pipeline.
@@ -256,6 +259,8 @@ def run_png_extraction_pipeline(
         ocr_results=ocr_results,
         default_status=default_status
     )
+    config_root = Path(project_root).resolve() if project_root else output_root.parent
+    assign_candidate_spatial_fields(candidates, PlanConfig.load_for_plan(config_root, plan_id))
     
     # 6. Validate candidates
     for c in candidates:

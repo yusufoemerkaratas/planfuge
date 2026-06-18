@@ -1,11 +1,30 @@
+import csv
+import io
 import json
 import tempfile
 import unittest
 from pathlib import Path
 
-from httpx import ASGITransport, AsyncClient
+from fastapi import HTTPException
 
-from server.app.api import app, calculate_opening, health, openings_csv
+from server.app.api import (
+    app,
+    calculate_opening,
+    export_verified_csv_endpoint,
+    export_verified_json_endpoint,
+    get_candidates,
+    get_crop_image,
+    get_metadata,
+    get_overlay_image,
+    get_pipeline_status,
+    get_plan_image,
+    get_plans,
+    get_reviews,
+    get_sample_candidates,
+    health,
+    openings_csv,
+    save_reviews,
+)
 from server.app.schemas import CalculateOpeningRequest, CsvExportRequest
 
 
@@ -56,8 +75,6 @@ class ApiTests(unittest.TestCase):
         self.assertIn("round", body)
 
     def test_candidates_endpoint_loads_valid_candidates(self) -> None:
-        import asyncio
-
         payload = {
             "plan_id": "SP_U1_0003",
             "candidates": [
@@ -77,14 +94,8 @@ class ApiTests(unittest.TestCase):
             candidate_file = candidates_dir / "SP_U1_0003_candidates.json"
             candidate_file.write_text(json.dumps(payload))
 
-            async def run_request() -> dict:
-                app.state.project_root = root
-                transport = ASGITransport(app=app)
-                async with AsyncClient(transport=transport, base_url="http://test") as client:
-                    response = await client.get("/api/candidates/SP_U1_0003")
-                    return response.json()
-
-            data = asyncio.run(run_request())
+            app.state.project_root = root
+            data = get_candidates("SP_U1_0003")
 
         self.assertEqual(data["plan_id"], "SP_U1_0003")
         self.assertEqual(data["candidate_count"], 1)
@@ -92,26 +103,15 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(data["candidates"][0]["candidate_id"], "cand-001")
 
     def test_candidates_endpoint_missing_file_returns_warning(self) -> None:
-        import asyncio
-
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-
-            async def run_request() -> dict:
-                app.state.project_root = root
-                transport = ASGITransport(app=app)
-                async with AsyncClient(transport=transport, base_url="http://test") as client:
-                    response = await client.get("/api/candidates/SP_U1_9999")
-                    return response.json()
-
-            data = asyncio.run(run_request())
+            app.state.project_root = root
+            data = get_candidates("SP_U1_9999")
 
         self.assertEqual(data["candidate_count"], 0)
         self.assertTrue(any("not found" in w for w in data["warnings"]))
 
     def test_sample_candidates_endpoint_returns_sample_data(self) -> None:
-        import asyncio
-
         sample_payload = {
             "plan_id": "SAMPLE_DEMO",
             "candidates": [
@@ -121,6 +121,8 @@ class ApiTests(unittest.TestCase):
                     "label_type": "WDB",
                     "raw_text": "WDB 20/50 d=25",
                     "bbox_image": [1200, 3400, 180, 90],
+                    "width_mm": 200,
+                    "height_mm": 500,
                     "status": "needs_review",
                 }
             ],
@@ -133,22 +135,22 @@ class ApiTests(unittest.TestCase):
             sample_file = samples_dir / "sample_candidates.json"
             sample_file.write_text(json.dumps(sample_payload))
 
-            async def run_request() -> dict:
-                app.state.project_root = root
-                transport = ASGITransport(app=app)
-                async with AsyncClient(transport=transport, base_url="http://test") as client:
-                    response = await client.get("/api/candidates/sample")
-                    return response.json()
-
-            data = asyncio.run(run_request())
+            app.state.project_root = root
+            data = get_sample_candidates()
 
         self.assertEqual(data["source"], "sample")
         self.assertEqual(data["candidate_count"], 1)
         self.assertEqual(data["candidates"][0]["source"], "sample")
 
-    def test_metadata_endpoint_loads_valid_metadata(self) -> None:
-        import asyncio
+        data["candidates"][0]["status"] = "verified"
+        with tempfile.TemporaryDirectory() as temp_dir:
+            app.state.project_root = Path(temp_dir)
+            response = export_verified_json_endpoint("SP_U1_0002", data["candidates"])
+            exported = json.loads(response.body)
 
+        self.assertEqual(exported["opening_count"], 1)
+
+    def test_metadata_endpoint_loads_valid_metadata(self) -> None:
         payload = {
             "plan_id": "SP_U1_0002",
             "image_width_px": 18896,
@@ -163,14 +165,8 @@ class ApiTests(unittest.TestCase):
             metadata_file = metadata_dir / "SP_U1_0002_metadata.json"
             metadata_file.write_text(json.dumps(payload))
 
-            async def run_request() -> dict:
-                app.state.project_root = root
-                transport = ASGITransport(app=app)
-                async with AsyncClient(transport=transport, base_url="http://test") as client:
-                    response = await client.get("/api/metadata/SP_U1_0002")
-                    return response.json()
-
-            data = asyncio.run(run_request())
+            app.state.project_root = root
+            data = get_metadata("SP_U1_0002")
 
         self.assertEqual(data["plan_id"], "SP_U1_0002")
         self.assertTrue(data["exists"])
@@ -178,27 +174,16 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(data["metadata"]["scale_text_visible"], "M1:50")
 
     def test_metadata_endpoint_missing_file_returns_warning(self) -> None:
-        import asyncio
-
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-
-            async def run_request() -> dict:
-                app.state.project_root = root
-                transport = ASGITransport(app=app)
-                async with AsyncClient(transport=transport, base_url="http://test") as client:
-                    response = await client.get("/api/metadata/SP_U1_9999")
-                    return response.json()
-
-            data = asyncio.run(run_request())
+            app.state.project_root = root
+            data = get_metadata("SP_U1_9999")
 
         self.assertEqual(data["plan_id"], "SP_U1_9999")
         self.assertFalse(data["exists"])
         self.assertTrue(any("not found" in w for w in data["warnings"]))
 
     def test_save_reviews_endpoint_saves_payload(self) -> None:
-        import asyncio
-
         payload = [
             {"candidate_id": "cand-001", "status": "verified"},
             {"candidate_id": "cand-002", "status": "rejected"},
@@ -207,14 +192,8 @@ class ApiTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
 
-            async def run_request() -> dict:
-                app.state.project_root = root
-                transport = ASGITransport(app=app)
-                async with AsyncClient(transport=transport, base_url="http://test") as client:
-                    response = await client.post("/api/reviews/SP_U1_0003", json=payload)
-                    return response.json()
-
-            data = asyncio.run(run_request())
+            app.state.project_root = root
+            data = save_reviews("SP_U1_0003", payload)
 
             self.assertEqual(data["status"], "success")
             self.assertTrue("SP_U1_0003_reviewed_candidates.json" in data["path"])
@@ -227,8 +206,6 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(saved_data["candidate_count"], 2)
 
     def test_get_reviews_endpoint_loads_draft(self) -> None:
-        import asyncio
-
         payload = {
             "plan_id": "SP_U1_0003",
             "saved_at": "2023-10-01T12:00:00Z",
@@ -250,14 +227,8 @@ class ApiTests(unittest.TestCase):
             review_file = reviews_dir / "SP_U1_0003_reviewed_candidates.json"
             review_file.write_text(json.dumps(payload))
 
-            async def run_request() -> dict:
-                app.state.project_root = root
-                transport = ASGITransport(app=app)
-                async with AsyncClient(transport=transport, base_url="http://test") as client:
-                    response = await client.get("/api/reviews/SP_U1_0003")
-                    return response.json()
-
-            data = asyncio.run(run_request())
+            app.state.project_root = root
+            data = get_reviews("SP_U1_0003")
 
         self.assertEqual(data["plan_id"], "SP_U1_0003")
         self.assertEqual(data["candidate_count"], 1)
@@ -265,76 +236,235 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(data["candidates"][0]["status"], "verified")
 
     def test_json_export_endpoint_saves_and_filters_payload(self) -> None:
-        import asyncio
-
         payload = [
-            {"candidate_id": "cand-001", "status": "verified", "width_mm": 100},
-            {"candidate_id": "cand-002", "status": "rejected", "width_mm": 200},
+            {"candidate_id": "cand-001", "status": "verified", "diameter_mm": 100},
+            {"candidate_id": "cand-002", "status": "rejected", "diameter_mm": 200},
         ]
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
+            app.state.project_root = Path(temp_dir)
+            response = export_verified_json_endpoint("SP_U1_0001", payload)
+            exported = json.loads(response.body)
 
-            async def run_requests() -> tuple[int, str]:
-                app.state.project_root = root
-                transport = ASGITransport(app=app)
-                async with AsyncClient(transport=transport, base_url="http://test") as client:
-                    response = await client.post("/api/exports/json/SP_U1_0001", json=payload)
-                    return response.status_code, response.headers.get("content-type", "")
-
-            status, content_type = asyncio.run(run_requests())
-
-            self.assertEqual(status, 200)
-            self.assertIn("application/json", content_type)
+        self.assertEqual(exported["opening_count"], 1)
+        self.assertEqual(exported["openings"][0]["Length/cm"], 10.0)
 
     def test_csv_export_endpoint_saves_and_filters_payload(self) -> None:
-        import asyncio
-
         payload = [
-            {"candidate_id": "cand-001", "status": "verified", "width_mm": 100},
-            {"candidate_id": "cand-002", "status": "rejected", "width_mm": 200},
+            {"candidate_id": "cand-001", "status": "verified", "diameter_mm": 100},
+            {"candidate_id": "cand-002", "status": "rejected", "diameter_mm": 200},
+        ]
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            app.state.project_root = Path(temp_dir)
+            response = export_verified_csv_endpoint("SP_U1_0001", payload)
+            rows = list(csv.DictReader(io.StringIO(response.body.decode("utf-8-sig"))))
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["Length/cm"], "10.0")
+
+    def test_csv_export_with_no_verified_candidates_has_headers_only(self) -> None:
+        payload = [
+            {"candidate_id": "cand-001", "status": "needs_review", "diameter_mm": 100},
+            {"candidate_id": "cand-002", "status": "rejected", "diameter_mm": 200},
+        ]
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            app.state.project_root = Path(temp_dir)
+            response = export_verified_csv_endpoint("SP_U1_0001", payload)
+            csv_text = response.body.decode("utf-8-sig")
+            rows = list(csv.DictReader(io.StringIO(csv_text)))
+
+        self.assertEqual(rows, [])
+        self.assertEqual(
+            next(csv.reader(io.StringIO(csv_text))),
+            [
+                "Floor",
+                "Construction phase/Plan name",
+                "Length/cm",
+                "Width/cm",
+                "Height/cm",
+                "Geometry",
+                "Type",
+                "Number",
+                "Weight/kg",
+                "Review status",
+            ],
+        )
+
+    def test_csv_export_keeps_spatially_distant_openings_separate(self) -> None:
+        payload = [
+            {
+                "candidate_id": "cand-001",
+                "status": "verified",
+                "diameter_mm": 100,
+                "bbox_image": [100, 100, 20, 20],
+            },
+            {
+                "candidate_id": "cand-002",
+                "status": "verified",
+                "diameter_mm": 100,
+                "bbox_image": [5000, 5000, 20, 20],
+            },
+        ]
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            app.state.project_root = Path(temp_dir)
+            response = export_verified_csv_endpoint("SP_U1_0001", payload)
+            rows = list(csv.DictReader(io.StringIO(response.body.decode("utf-8-sig"))))
+
+        self.assertEqual(len(rows), 2)
+        self.assertEqual([row["Number"] for row in rows], ["1", "1"])
+
+    def test_csv_export_groups_nearby_openings_with_total_weight(self) -> None:
+        payload = [
+            {
+                "candidate_id": "cand-001",
+                "status": "verified",
+                "diameter_mm": 100,
+                "bbox_image": [100, 100, 20, 20],
+            },
+            {
+                "candidate_id": "cand-002",
+                "status": "verified",
+                "diameter_mm": 100,
+                "bbox_image": [200, 200, 20, 20],
+            },
+        ]
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            app.state.project_root = Path(temp_dir)
+            response = export_verified_csv_endpoint("SP_U1_0001", payload)
+            rows = list(csv.DictReader(io.StringIO(response.body.decode("utf-8-sig"))))
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["Number"], "2")
+        self.assertEqual(rows[0]["Weight/kg"], "2.1")
+
+    def test_csv_export_marks_confident_opening_with_explicit_height_ready(self) -> None:
+        payload = [
+            {
+                "candidate_id": "cand-001",
+                "status": "verified",
+                "diameter_mm": 100,
+                "bbox_pdf": [0, 0, 10, 10],
+                "bbox_image": [0, 0, 40, 40],
+                "confidence": 0.9,
+            }
         ]
 
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
+            words_dir = root / "data" / "words"
+            words_dir.mkdir(parents=True)
+            (words_dir / "SP_U1_0001_words.json").write_text(
+                json.dumps([{"text": "d=25cm", "x0": 0, "y0": 0, "x1": 10, "y1": 10}])
+            )
+            app.state.project_root = root
+            response = export_verified_csv_endpoint("SP_U1_0001", payload)
+            rows = list(csv.DictReader(io.StringIO(response.body.decode("utf-8-sig"))))
 
-            async def run_requests() -> tuple[int, str]:
-                app.state.project_root = root
-                transport = ASGITransport(app=app)
-                async with AsyncClient(transport=transport, base_url="http://test") as client:
-                    response = await client.post("/api/exports/csv/SP_U1_0001", json=payload)
-                    return response.status_code, response.headers.get("content-type", "")
+        self.assertEqual(rows[0]["Height/cm"], "25.0")
+        self.assertEqual(rows[0]["Review status"], "ready")
 
-            status, content_type = asyncio.run(run_requests())
+    def test_csv_export_marks_low_confidence_opening_for_review(self) -> None:
+        candidate = {
+            "candidate_id": "cand-001",
+            "status": "verified",
+            "diameter_mm": 100,
+            "bbox_pdf": [0, 0, 10, 10],
+            "confidence": 0.59,
+        }
 
-            self.assertEqual(status, 200)
-            self.assertIn("text/csv", content_type)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            words_dir = root / "data" / "words"
+            words_dir.mkdir(parents=True)
+            (words_dir / "SP_U1_0001_words.json").write_text(
+                json.dumps([{"text": "d=25cm", "x0": 0, "y0": 0, "x1": 10, "y1": 10}])
+            )
+            app.state.project_root = root
+            response = export_verified_csv_endpoint("SP_U1_0001", [candidate])
+            rows = list(csv.DictReader(io.StringIO(response.body.decode("utf-8-sig"))))
+
+        self.assertEqual(rows[0]["Review status"], "review_required")
+        self.assertEqual(candidate["status"], "verified")
+
+    def test_csv_export_marks_default_height_opening_for_review(self) -> None:
+        payload = [
+            {
+                "candidate_id": "cand-001",
+                "status": "verified",
+                "diameter_mm": 100,
+                "confidence": 0.9,
+            }
+        ]
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            app.state.project_root = Path(temp_dir)
+            response = export_verified_csv_endpoint("SP_U1_0001", payload)
+            rows = list(csv.DictReader(io.StringIO(response.body.decode("utf-8-sig"))))
+
+        self.assertEqual(rows[0]["Height/cm"], "30.0")
+        self.assertEqual(rows[0]["Review status"], "review_required")
+
+    def test_csv_export_uses_plan_config_default_height(self) -> None:
+        payload = [
+            {
+                "candidate_id": "cand-001",
+                "status": "verified",
+                "diameter_mm": 100,
+                "confidence": 0.9,
+            }
+        ]
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config_dir = root / "data" / "config"
+            config_dir.mkdir(parents=True)
+            (config_dir / "SP_U1_0001_config.json").write_text(
+                json.dumps({"plan_id": "SP_U1_0001", "default_height_cm": 45})
+            )
+            app.state.project_root = root
+            response = export_verified_csv_endpoint("SP_U1_0001", payload)
+            rows = list(csv.DictReader(io.StringIO(response.body.decode("utf-8-sig"))))
+
+        self.assertEqual(rows[0]["Height/cm"], "45.0")
+        self.assertEqual(rows[0]["Review status"], "review_required")
+
+    def test_csv_export_recommends_splitting_overweight_group(self) -> None:
+        payload = [
+            {
+                "candidate_id": "cand-001",
+                "status": "verified",
+                "diameter_mm": 500,
+                "confidence": 0.9,
+            }
+        ]
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            app.state.project_root = Path(temp_dir)
+            response = export_verified_csv_endpoint("SP_U1_0001", payload)
+            rows = list(csv.DictReader(io.StringIO(response.body.decode("utf-8-sig"))))
+
+        self.assertGreater(float(rows[0]["Weight/kg"]), 25.0)
+        self.assertEqual(rows[0]["Review status"], "split_recommended")
 
     def test_pipeline_status_endpoint_returns_flags(self) -> None:
-        import asyncio
-
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             
             # Create one dummy file to test partial true state
             (root / "outputs" / "crops").mkdir(parents=True)
 
-            async def run_request() -> dict:
-                app.state.project_root = root
-                transport = ASGITransport(app=app)
-                async with AsyncClient(transport=transport, base_url="http://test") as client:
-                    response = await client.get("/api/status/SP_U1_0009")
-                    return response.json()
-
-            data = asyncio.run(run_request())
+            app.state.project_root = root
+            data = get_pipeline_status("SP_U1_0009")
 
             self.assertEqual(data["plan_id"], "SP_U1_0009")
             self.assertTrue(data["files"]["crops_dir"])
             self.assertFalse(data["files"]["export_csv"])
 
     def test_get_plans_endpoint_returns_discovered_plans(self) -> None:
-        import asyncio
-
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             pages_dir = root / "data" / "pages"
@@ -342,22 +472,14 @@ class ApiTests(unittest.TestCase):
             (pages_dir / "SP_U1_0001.png").touch()
             (pages_dir / "SP_U1_0002.png").touch()
 
-            async def run_request() -> dict:
-                app.state.project_root = root
-                transport = ASGITransport(app=app)
-                async with AsyncClient(transport=transport, base_url="http://test") as client:
-                    response = await client.get("/api/plans")
-                    return response.json()
-
-            data = asyncio.run(run_request())
+            app.state.project_root = root
+            data = get_plans()
 
             self.assertIn("plans", data)
             self.assertEqual(len(data["plans"]), 2)
             self.assertEqual(data["plans"][0], "SP_U1_0001")
 
     def test_get_plan_image_returns_file_or_404(self) -> None:
-        import asyncio
-
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             pages_dir = root / "data" / "pages"
@@ -367,23 +489,14 @@ class ApiTests(unittest.TestCase):
             dummy_image = pages_dir / "SP_U1_0001.png"
             dummy_image.write_bytes(b"dummy_png_bytes")
 
-            async def run_requests() -> tuple[int, bytes, int]:
-                app.state.project_root = root
-                transport = ASGITransport(app=app)
-                async with AsyncClient(transport=transport, base_url="http://test") as client:
-                    resp_ok = await client.get("/api/images/pages/SP_U1_0001")
-                    resp_missing = await client.get("/api/images/pages/MISSING")
-                    return resp_ok.status_code, resp_ok.content, resp_missing.status_code
-
-            status_ok, content, status_missing = asyncio.run(run_requests())
-
-            self.assertEqual(status_ok, 200)
-            self.assertEqual(content, b"dummy_png_bytes")
-            self.assertEqual(status_missing, 404)
+            app.state.project_root = root
+            response = get_plan_image("SP_U1_0001")
+            self.assertEqual(response.body, b"dummy_png_bytes")
+            with self.assertRaises(HTTPException) as missing:
+                get_plan_image("MISSING")
+            self.assertEqual(missing.exception.status_code, 404)
 
     def test_get_crop_image_returns_file_or_404(self) -> None:
-        import asyncio
-
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             crops_dir = root / "outputs" / "crops"
@@ -393,23 +506,14 @@ class ApiTests(unittest.TestCase):
             dummy_image = crops_dir / "SP_U1_0001_crop1.png"
             dummy_image.write_bytes(b"dummy_crop_bytes")
 
-            async def run_requests() -> tuple[int, bytes, int]:
-                app.state.project_root = root
-                transport = ASGITransport(app=app)
-                async with AsyncClient(transport=transport, base_url="http://test") as client:
-                    resp_ok = await client.get("/api/images/crops/SP_U1_0001_crop1.png")
-                    resp_missing = await client.get("/api/images/crops/missing_crop.png")
-                    return resp_ok.status_code, resp_ok.content, resp_missing.status_code
-
-            status_ok, content, status_missing = asyncio.run(run_requests())
-
-            self.assertEqual(status_ok, 200)
-            self.assertEqual(content, b"dummy_crop_bytes")
-            self.assertEqual(status_missing, 404)
+            app.state.project_root = root
+            response = get_crop_image("SP_U1_0001_crop1.png")
+            self.assertEqual(response.body, b"dummy_crop_bytes")
+            with self.assertRaises(HTTPException) as missing:
+                get_crop_image("missing_crop.png")
+            self.assertEqual(missing.exception.status_code, 404)
 
     def test_get_overlay_image_returns_file_or_404(self) -> None:
-        import asyncio
-
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             overlays_dir = root / "outputs" / "overlays"
@@ -419,21 +523,13 @@ class ApiTests(unittest.TestCase):
             dummy_image = overlays_dir / "SP_U1_0001_overlay.png"
             dummy_image.write_bytes(b"dummy_overlay_bytes")
 
-            async def run_requests() -> tuple[int, bytes, int]:
-                app.state.project_root = root
-                transport = ASGITransport(app=app)
-                async with AsyncClient(transport=transport, base_url="http://test") as client:
-                    resp_ok = await client.get("/api/images/overlays/SP_U1_0001")
-                    resp_missing = await client.get("/api/images/overlays/MISSING")
-                    return resp_ok.status_code, resp_ok.content, resp_missing.status_code
-
-            status_ok, content, status_missing = asyncio.run(run_requests())
-
-            self.assertEqual(status_ok, 200)
-            self.assertEqual(content, b"dummy_overlay_bytes")
-            self.assertEqual(status_missing, 404)
+            app.state.project_root = root
+            response = get_overlay_image("SP_U1_0001")
+            self.assertEqual(response.body, b"dummy_overlay_bytes")
+            with self.assertRaises(HTTPException) as missing:
+                get_overlay_image("MISSING")
+            self.assertEqual(missing.exception.status_code, 404)
 
 
 if __name__ == "__main__":
     unittest.main()
-

@@ -4,6 +4,7 @@ from pathlib import Path
 from server.app.models import GEOMETRY_RECTANGULAR, GEOMETRY_ROUND, Opening, WeightConfig
 from server.app.services.csv_export import serialize_csv, to_csv_row
 from src.config.plan_config import PlanConfig
+from src.config.spatial_mapping import color_zone_for_point, grid_coordinate_for_point
 
 
 def parse_floor(plan_id: str) -> str:
@@ -14,54 +15,6 @@ def parse_floor(plan_id: str) -> str:
         if part.startswith(("EG", "OG", "DG")):
             return part
     return "unknown"
-
-
-def _point_in_polygon(x: float, y: float, polygon: list[list[float]]) -> bool:
-    inside = False
-    previous = len(polygon) - 1
-    for current in range(len(polygon)):
-        current_y = polygon[current][1]
-        previous_y = polygon[previous][1]
-        if (current_y > y) != (previous_y > y):
-            current_x = polygon[current][0]
-            previous_x = polygon[previous][0]
-            intersect_x = (previous_x - current_x) * (y - current_y) / (previous_y - current_y) + current_x
-            if x < intersect_x:
-                inside = not inside
-        previous = current
-    return inside
-
-
-def _color_zone(x: float, y: float, plan_config: PlanConfig) -> str:
-    for zone in plan_config.color_zones:
-        polygon = zone.get("polygon")
-        if polygon and _point_in_polygon(x, y, polygon):
-            return zone.get("zone_id", "zone_unknown")
-    return "zone_unknown"
-
-
-def _nearest_label(positions: list, value: float) -> str | None:
-    if not positions:
-        return None
-    pixels = [position[0] for position in positions]
-    labels = [position[1] for position in positions]
-    lo = 0
-    hi = len(pixels) - 1
-    while lo < hi:
-        mid = (lo + hi + 1) // 2
-        if pixels[mid] <= value:
-            lo = mid
-        else:
-            hi = mid - 1
-    return labels[lo]
-
-
-def _grid_coordinate(x: float, y: float, plan_config: PlanConfig) -> str:
-    col_label = _nearest_label(plan_config.column_positions, x)
-    row_label = _nearest_label(plan_config.row_positions, y)
-    if col_label is not None and row_label is not None:
-        return f"{col_label}-{row_label}"
-    return "grid_unknown"
 
 
 def candidate_to_opening(candidate: dict, plan_id: str, plan_config: PlanConfig) -> Opening:
@@ -85,6 +38,7 @@ def candidate_to_opening(candidate: dict, plan_id: str, plan_config: PlanConfig)
     bbox = candidate.get("bbox_image") or [0, 0, 0, 0]
     center_x = bbox[0] + bbox[2] / 2
     center_y = bbox[1] + bbox[3] / 2
+    color_zone_id, _ = color_zone_for_point(center_x, center_y, plan_config)
 
     uses_default_height = candidate.get("ra_value") is None and candidate.get("ok_value") is None
     review_required = status != "verified" or confidence < 0.60 or uses_default_height
@@ -99,8 +53,8 @@ def candidate_to_opening(candidate: dict, plan_id: str, plan_config: PlanConfig)
         floor=parse_floor(plan_id),
         plan_name=plan_id,
         source_pdf=f"{plan_id}.pdf",
-        grid_coordinate=_grid_coordinate(center_x, center_y, plan_config),
-        color_zone_id=_color_zone(center_x, center_y, plan_config),
+        grid_coordinate=grid_coordinate_for_point(center_x, center_y, plan_config),
+        color_zone_id=color_zone_id,
         confidence=confidence,
         review_required=review_required,
     )
