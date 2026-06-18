@@ -103,6 +103,38 @@ class OpeningLabelParserTest(unittest.TestCase):
         self.assertEqual(parsed6["label_type"], "DDB")
         self.assertEqual(parsed6["diameter_mm"], 100)
 
+    def test_parse_rectangular_separator_variations(self):
+        # 1. 65 \ 38 -> width_mm 650, height_mm 380, label_type None
+        p1 = parse_opening_label("65 \\ 38")
+        self.assertIsNone(p1["label_type"])
+        self.assertEqual(p1["width_mm"], 650)
+        self.assertEqual(p1["height_mm"], 380)
+
+        # 2. WDB 65/38 -> width_mm 650, height_mm 380, label_type WDB
+        p2 = parse_opening_label("WDB 65/38")
+        self.assertEqual(p2["label_type"], "WDB")
+        self.assertEqual(p2["width_mm"], 650)
+        self.assertEqual(p2["height_mm"], 380)
+
+        # 3. DDB 65x38 -> width_mm 650, height_mm 380, label_type DDB
+        p3 = parse_opening_label("DDB 65x38")
+        self.assertEqual(p3["label_type"], "DDB")
+        self.assertEqual(p3["width_mm"], 650)
+        self.assertEqual(p3["height_mm"], 380)
+
+        # 4. 65 l 38 -> width_mm 650, height_mm 380, label_type None
+        p4 = parse_opening_label("65 l 38")
+        self.assertIsNone(p4["label_type"])
+        self.assertEqual(p4["width_mm"], 650)
+        self.assertEqual(p4["height_mm"], 380)
+
+        # 5. 65|38 -> width_mm 650, height_mm 380, label_type None
+        p5 = parse_opening_label("65|38")
+        self.assertIsNone(p5["label_type"])
+        self.assertEqual(p5["width_mm"], 650)
+        self.assertEqual(p5["height_mm"], 380)
+
+
 
 if __name__ == "__main__":
     unittest.main()
