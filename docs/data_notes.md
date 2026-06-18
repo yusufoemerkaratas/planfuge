@@ -16,3 +16,8 @@ All plan images are located under: data/pages/<plan_id>.png
 - Format: PNG
 - Source: PDF floor plans (Untergeschoss 1)
 - Floor: U1 (Basement Level 1)
+
+## Red Markup Clarification
+Red cloud markings in the plans are revision/comment annotations only.
+They are NOT the target openings.
+All openings (DDB and WDB labels) must be detected regardless of color.
