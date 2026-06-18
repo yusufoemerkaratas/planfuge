@@ -158,3 +158,16 @@ def get_pipeline_status(plan_id: str) -> dict:
 def get_plans() -> dict:
     return {"plans": discover_plans(_get_project_root())}
 
+
+@app.get("/api/images/pages/{plan_id}")
+def get_plan_image(plan_id: str) -> Response:
+    from fastapi import HTTPException
+    
+    image_path = _get_project_root() / "data" / "pages" / f"{plan_id}.png"
+    if not image_path.exists():
+        raise HTTPException(status_code=404, detail="Image not found")
+        
+    with open(image_path, "rb") as f:
+        content = f.read()
+    return Response(content=content, media_type="image/png")
+

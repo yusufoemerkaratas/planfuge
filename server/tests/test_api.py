@@ -367,6 +367,32 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(len(data["plans"]), 2)
             self.assertEqual(data["plans"][0], "SP_U1_0001")
 
+    def test_get_plan_image_returns_file_or_404(self) -> None:
+        import asyncio
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            pages_dir = root / "data" / "pages"
+            pages_dir.mkdir(parents=True)
+            
+            # Create a dummy image
+            dummy_image = pages_dir / "SP_U1_0001.png"
+            dummy_image.write_bytes(b"dummy_png_bytes")
+
+            async def run_requests() -> tuple[int, bytes, int]:
+                app.state.project_root = root
+                transport = ASGITransport(app=app)
+                async with AsyncClient(transport=transport, base_url="http://test") as client:
+                    resp_ok = await client.get("/api/images/pages/SP_U1_0001")
+                    resp_missing = await client.get("/api/images/pages/MISSING")
+                    return resp_ok.status_code, resp_ok.content, resp_missing.status_code
+
+            status_ok, content, status_missing = asyncio.run(run_requests())
+
+            self.assertEqual(status_ok, 200)
+            self.assertEqual(content, b"dummy_png_bytes")
+            self.assertEqual(status_missing, 404)
+
 
 if __name__ == "__main__":
     unittest.main()

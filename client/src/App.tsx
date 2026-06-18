@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react'
-import { LayoutDashboard, FileCheck, Save, Download, FileJson, AlertCircle } from 'lucide-react'
+import { LayoutDashboard, FileCheck, Save, Download, FileJson, AlertCircle, Maximize2 } from 'lucide-react'
 
 function App() {
   const [activePlan, setActivePlan] = useState<string | null>(null)
   const [plans, setPlans] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
+  const [metadata, setMetadata] = useState<{image_width?: number, image_height?: number, scale?: number} | null>(null)
+  const [imageError, setImageError] = useState(false)
 
+  // Fetch available plans on mount
   useEffect(() => {
     fetch('/api/plans')
       .then(res => res.json())
@@ -20,6 +23,20 @@ function App() {
       .catch(err => console.error("Failed to load plans:", err))
       .finally(() => setLoading(false))
   }, [])
+
+  // Fetch metadata when activePlan changes
+  useEffect(() => {
+    if (!activePlan) return
+    setImageError(false)
+    setMetadata(null)
+    
+    fetch(`/api/metadata/${activePlan}`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data) setMetadata(data)
+      })
+      .catch(err => console.error("Failed to load metadata:", err))
+  }, [activePlan])
 
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
@@ -70,89 +87,111 @@ function App() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto flex flex-col">
+      <main className="flex-1 flex flex-col h-screen overflow-hidden">
         {/* Header */}
-        <header className="h-16 flex items-center px-8 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10 shadow-sm">
-          <h2 className="text-lg font-medium text-foreground">
+        <header className="h-16 flex items-center px-8 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10 shrink-0">
+          <h2 className="text-lg font-medium text-foreground flex items-center gap-3">
             {activePlan ? `Dashboard — ${activePlan}` : "Dashboard"}
+            {metadata && metadata.image_width && metadata.image_height && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground border border-border">
+                <Maximize2 className="w-3 h-3" />
+                {metadata.image_width} x {metadata.image_height}
+              </span>
+            )}
           </h2>
         </header>
 
-        {/* Content Area */}
-        <div className="flex-1 p-8 max-w-5xl mx-auto w-full">
-          <div className="mb-10">
-            <h3 className="text-3xl font-semibold tracking-tight mb-2">Welcome to PlanFuge</h3>
-            <p className="text-muted-foreground text-lg">
-              Centralized hub for reviewing AI-detected construction plan openings.
-            </p>
-          </div>
-
+        {/* Content Area - Split View */}
+        <div className="flex-1 overflow-hidden">
           {!activePlan ? (
-             <div className="rounded-xl border border-dashed border-border bg-muted/50 p-12 text-center text-muted-foreground">
-               <FileCheck className="w-12 h-12 mx-auto mb-4 opacity-50" />
-               <p>Please select or add a plan to view details.</p>
+             <div className="h-full flex items-center justify-center p-8">
+               <div className="max-w-md w-full rounded-xl border border-dashed border-border bg-muted/50 p-12 text-center text-muted-foreground">
+                 <FileCheck className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                 <p>Please select or add a plan to view details.</p>
+               </div>
              </div>
           ) : (
-            <div className="grid gap-6 md:grid-cols-2 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              {/* Status Panel Skeleton */}
-              <div className="rounded-xl border border-border bg-card p-6 shadow-sm hover:shadow-md transition-shadow duration-300">
-                <h4 className="text-lg font-medium mb-4 flex items-center gap-2">
-                  <FileCheck className="w-5 h-5 text-green-500" />
-                  Pipeline Status
-                </h4>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Current data availability for <strong className="text-foreground">{activePlan}</strong>:
-                </p>
-                
-                <ul className="space-y-3">
-                  <li className="flex items-center justify-between text-sm">
-                    <span className="flex items-center gap-2 text-foreground">
-                      <div className="w-2 h-2 rounded-full bg-green-500" />
-                      Source Image
-                    </span>
-                    <span className="text-muted-foreground">Available</span>
-                  </li>
-                  <li className="flex items-center justify-between text-sm">
-                    <span className="flex items-center gap-2 text-foreground">
-                      <div className="w-2 h-2 rounded-full bg-green-500" />
-                      Candidates JSON
-                    </span>
-                    <span className="text-muted-foreground">Available</span>
-                  </li>
-                  <li className="flex items-center justify-between text-sm">
-                    <span className="flex items-center gap-2 text-foreground">
-                      <div className="w-2 h-2 rounded-full bg-yellow-500" />
-                      Review Draft
-                    </span>
-                    <span className="text-muted-foreground">Missing</span>
-                  </li>
-                  <li className="flex items-center justify-between text-sm">
-                    <span className="flex items-center gap-2 text-foreground">
-                      <div className="w-2 h-2 rounded-full bg-yellow-500" />
-                      Verified Export
-                    </span>
-                    <span className="text-muted-foreground">Missing</span>
-                  </li>
-                </ul>
+            <div className="h-full flex flex-col lg:flex-row divide-y lg:divide-y-0 lg:divide-x divide-border">
+              
+              {/* Left Column: Plan Image Viewer (Flex growing) */}
+              <div className="flex-1 flex flex-col min-h-0 bg-muted/20 relative animate-in fade-in duration-500">
+                {imageError ? (
+                  <div className="absolute inset-0 flex items-center justify-center p-8">
+                    <div className="max-w-sm w-full rounded-xl border border-red-500/20 bg-red-500/5 p-6 text-center text-red-600 dark:text-red-400">
+                      <AlertCircle className="w-10 h-10 mx-auto mb-3 opacity-80" />
+                      <h3 className="font-semibold mb-1">Image Missing</h3>
+                      <p className="text-sm opacity-80">
+                        Could not load data/pages/{activePlan}.png
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="absolute inset-0 overflow-auto p-6 flex items-start justify-center">
+                    <div className="relative rounded-lg overflow-hidden border border-border shadow-md bg-white max-w-full">
+                      <img 
+                        src={`/api/images/pages/${activePlan}`} 
+                        alt={`Plan ${activePlan}`}
+                        className="max-w-full h-auto object-contain block"
+                        onError={() => setImageError(true)}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* Quick Actions Placeholder */}
-              <div className="rounded-xl border border-border bg-card p-6 shadow-sm hover:shadow-md transition-shadow duration-300">
-                <h4 className="text-lg font-medium mb-4">Quick Actions</h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <button className="flex flex-col items-center justify-center p-4 rounded-lg border border-border bg-muted/30 hover:bg-primary/5 hover:border-primary/20 transition-all group">
-                    <Save className="w-6 h-6 mb-2 text-muted-foreground group-hover:text-primary transition-colors" />
-                    <span className="text-sm font-medium text-foreground">Review Detections</span>
-                  </button>
-                  <button className="flex flex-col items-center justify-center p-4 rounded-lg border border-border bg-muted/30 hover:bg-primary/5 hover:border-primary/20 transition-all group">
-                    <Download className="w-6 h-6 mb-2 text-muted-foreground group-hover:text-primary transition-colors" />
-                    <span className="text-sm font-medium text-foreground">Export CSV</span>
-                  </button>
-                  <button className="flex flex-col items-center justify-center p-4 rounded-lg border border-border bg-muted/30 hover:bg-primary/5 hover:border-primary/20 transition-all group">
-                    <FileJson className="w-6 h-6 mb-2 text-muted-foreground group-hover:text-primary transition-colors" />
-                    <span className="text-sm font-medium text-foreground">Export JSON</span>
-                  </button>
+              {/* Right Column: Status & Actions (Fixed width on desktop) */}
+              <div className="w-full lg:w-96 shrink-0 overflow-y-auto p-6 bg-background space-y-6">
+                
+                {/* Status Panel */}
+                <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+                  <h4 className="text-base font-semibold mb-4 flex items-center gap-2">
+                    <FileCheck className="w-4 h-4 text-green-500" />
+                    Pipeline Status
+                  </h4>
+                  <ul className="space-y-3">
+                    <li className="flex items-center justify-between text-sm">
+                      <span className="flex items-center gap-2 text-foreground">
+                        <div className={`w-2 h-2 rounded-full ${!imageError ? 'bg-green-500' : 'bg-red-500'}`} />
+                        Source Image
+                      </span>
+                      <span className="text-muted-foreground text-xs">{!imageError ? 'Available' : 'Missing'}</span>
+                    </li>
+                    <li className="flex items-center justify-between text-sm">
+                      <span className="flex items-center gap-2 text-foreground">
+                        <div className="w-2 h-2 rounded-full bg-green-500" />
+                        Candidates JSON
+                      </span>
+                      <span className="text-muted-foreground text-xs">Available</span>
+                    </li>
+                    <li className="flex items-center justify-between text-sm">
+                      <span className="flex items-center gap-2 text-foreground">
+                        <div className="w-2 h-2 rounded-full bg-yellow-500" />
+                        Review Draft
+                      </span>
+                      <span className="text-muted-foreground text-xs">Missing</span>
+                    </li>
+                  </ul>
                 </div>
+
+                {/* Quick Actions */}
+                <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+                  <h4 className="text-base font-semibold mb-4">Quick Actions</h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button className="col-span-2 flex items-center justify-center gap-2 p-3 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm font-medium">
+                      <Save className="w-4 h-4" />
+                      <span>Review Detections</span>
+                    </button>
+                    <button className="flex flex-col items-center justify-center p-3 rounded-lg border border-border bg-muted/30 hover:bg-primary/5 hover:border-primary/20 transition-all group">
+                      <Download className="w-5 h-5 mb-1 text-muted-foreground group-hover:text-primary transition-colors" />
+                      <span className="text-xs font-medium text-foreground">Export CSV</span>
+                    </button>
+                    <button className="flex flex-col items-center justify-center p-3 rounded-lg border border-border bg-muted/30 hover:bg-primary/5 hover:border-primary/20 transition-all group">
+                      <FileJson className="w-5 h-5 mb-1 text-muted-foreground group-hover:text-primary transition-colors" />
+                      <span className="text-xs font-medium text-foreground">Export JSON</span>
+                    </button>
+                  </div>
+                </div>
+
               </div>
             </div>
           )}
