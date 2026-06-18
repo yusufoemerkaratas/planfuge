@@ -8,6 +8,7 @@
 !imports/*.pdf
 !exports/
 !exports/.gitkeep
+!exports/*.csv
 !samples/
 !samples/.gitkeep
 !samples/*.png

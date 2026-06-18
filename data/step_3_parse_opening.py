@@ -53,11 +53,13 @@ def nearest_d(row):
 df["height_cm"] = df.apply(nearest_d, axis=1)
 
 # ── Calculate weight ──────────────────────────────────────
+DENSITY_KG_M3 = 440  # 3D-printed concrete shell effective density (matches server/app/models.py)
+
 def weight(row):
     try:
         l, w, h = row["length_cm"]/100, row["width_cm"]/100, row["height_cm"]/100
         vol = math.pi * (l/2)**2 * h if row["geometry"] == "round" else l * w * h
-        return round(vol * 2400, 1)
+        return round(vol * DENSITY_KG_M3, 1)
     except:
         return None
 
