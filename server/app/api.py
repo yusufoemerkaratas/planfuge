@@ -2,7 +2,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
@@ -201,3 +201,38 @@ def get_overlay_image(plan_id: str) -> Response:
         content = f.read()
     return Response(content=content, media_type="image/png")
 
+@app.post("/api/import/pdf")
+async def import_pdf(file: UploadFile) -> dict:
+    """Accept a PDF upload, run the extraction pipeline, return status."""
+    import subprocess
+    import sys
+    from fastapi import HTTPException
+
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files are accepted.")
+
+    project_root = _get_project_root()
+    import_dir = project_root / "data" / "imports"
+    import_dir.mkdir(parents=True, exist_ok=True)
+
+    pdf_path = import_dir / file.filename
+    contents = await file.read()
+    pdf_path.write_bytes(contents)
+
+    plan_id = pdf_path.stem
+
+    script = project_root / "scripts" / "run_pipeline_on_pdfs.py"
+    result = subprocess.run(
+        [sys.executable, str(script), "--pdf", str(pdf_path)],
+        capture_output=True,
+        text=True,
+        cwd=str(project_root),
+    )
+
+    success = result.returncode == 0
+    return {
+        "plan_id": plan_id,
+        "success": success,
+        "stdout": result.stdout,
+        "stderr": result.stderr,
+    }
