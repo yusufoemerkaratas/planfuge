@@ -1,0 +1,79 @@
+name: Release Draft
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Run build and test checks without drafting a release'
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  release-draft:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Backend Tests
+        run: |
+          python3 -m unittest discover -s server/tests
+          python3 -m unittest discover -s tests
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install Frontend Dependencies
+        working-directory: client
+        run: npm ci
+
+      - name: Run Linter
+        working-directory: client
+        run: npm run lint
+
+      - name: Run Frontend Tests
+        working-directory: client
+        run: npm run test
+
+      - name: Build Frontend Production Assets
+        working-directory: client
+        run: npm run build
+
+      - name: Package Frontend Assets to ZIP
+        run: |
+          zip -r planfuge-frontend-${{ github.ref_name }}.zip client/dist
+
+      - name: Create Draft Release & Upload Assets
+        if: ${{ (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && inputs.dry_run == false) }}
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          prerelease: false
+          generate_release_notes: true
+          files: planfuge-frontend-${{ github.ref_name }}.zip
