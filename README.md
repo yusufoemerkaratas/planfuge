@@ -120,13 +120,20 @@ Docker Compose handles Python, Node, Nginx, and Tesseract dependencies automatic
 docker compose up --build -d
 ```
 
+Docker runtime storage is intentionally ephemeral. Every backend container start clears
+its internal `data/` and `outputs/` directories before serving requests. Uploaded PDFs,
+review drafts, crops, overlays, and exports remain available during the current container
+session only; restarting or recreating the backend starts again with an empty plan list.
+Host-side `data/` and `outputs/` files are not mounted into the container.
+
 Open your browser to:
 
 ```text
 http://localhost:8080
 ```
 
-Verify that the local containers are healthy and reachable using the integration smoke test:
+Immediately after a fresh start, verify that the containers are healthy, reachable, and
+contain no preloaded plans:
 
 ```bash
 python3 scripts/docker_smoke_test.py
@@ -134,7 +141,9 @@ python3 scripts/docker_smoke_test.py
 
 ### 2. Manual Local Development
 
-If you prefer to run the components locally without Docker:
+If you prefer to run the components locally without Docker, the backend uses the repository's
+host-side `data/` and `outputs/` directories. The automatic session reset applies only to the
+Docker workflow.
 
 #### System Dependency (Tesseract OCR)
 

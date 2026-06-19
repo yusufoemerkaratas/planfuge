@@ -9,9 +9,6 @@ services:
         APP_UID: ${APP_UID:-1000}
     init: true
     restart: unless-stopped
-    volumes:
-      - ./data:/app/data
-      - ./outputs:/app/outputs
     healthcheck:
       test:
         - CMD
