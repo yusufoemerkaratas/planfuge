@@ -10,23 +10,52 @@ PlanFuge supports the extraction, review, and export of ceiling recesses and sla
 
 The following features and quality-of-life enhancements were implemented in this fork:
 
-* **Visual Bounding Box Overlay Pipeline:** Implemented [overlay_drawer.py](file:///home/yusufkaratas/Documents/planfuge/planfuge/src/candidates/overlay_drawer.py) to dynamically draw status-coded bounding box rectangles (Blue for `verified`, Red for `needs_review`) and candidate ID labels directly on blueprint drawings with proportional line width scaling and system fallback fonts.
-* **Pipeline Integration & Clean Teardown:** Integrated the overlay drawing step into [run_pipeline_on_pdfs.py](file:///home/yusufkaratas/Documents/planfuge/planfuge/scripts/run_pipeline_on_pdfs.py) to trigger automatically post-extraction, with fail-safe deletion of partial images on failure.
-* **Comprehensive Test Suites:** Added new unit tests (`tests/test_overlay_drawer.py`) and FastAPI endpoints/integration tests (`server/tests/test_api.py`) to verify the pipeline state and image loading, with all 120+ tests passing.
-* **Onboarding & Clean Slate Setup:** Cleared all tracked sample PDF/PNG outputs from Git, redesigned the empty-state frontend dashboard into a user onboarding UI, and updated `.gitignore` rules for production standards.
-* **CI/CD Integration:** Set up a [ci.yml](file:///home/yusufkaratas/Documents/planfuge/planfuge/.github/workflows/ci.yml) pipeline using GitHub Actions to automatically run backend unit tests, frontend linters, and frontend build validations.
+- **Visual Bounding Box Overlay Pipeline:** Implemented [overlay_drawer.py](file:///home/yusufkaratas/Documents/planfuge/planfuge/src/candidates/overlay_drawer.py) to dynamically draw status-coded bounding box rectangles (Blue for `verified`, Red for `needs_review`) and candidate ID labels directly on blueprint drawings with proportional line width scaling and system fallback fonts.
+- **Pipeline Integration & Clean Teardown:** Integrated the overlay drawing step into [run_pipeline_on_pdfs.py](file:///home/yusufkaratas/Documents/planfuge/planfuge/scripts/run_pipeline_on_pdfs.py) to trigger automatically post-extraction, with fail-safe deletion of partial images on failure.
+- **Comprehensive Test Suites:** Added new unit tests (`tests/test_overlay_drawer.py`) and FastAPI endpoints/integration tests (`server/tests/test_api.py`) to verify the pipeline state and image loading, with all 120+ tests passing.
+- **Onboarding & Clean Slate Setup:** Cleared all tracked sample PDF/PNG outputs from Git, redesigned the empty-state frontend dashboard into a user onboarding UI, and updated `.gitignore` rules for production standards.
+- **CI/CD Integration:** Set up a [ci.yml](file:///home/yusufkaratas/Documents/planfuge/planfuge/.github/workflows/ci.yml) pipeline using GitHub Actions to automatically run backend unit tests, frontend linters, and frontend build validations.
+- **Pre-Commit Hooks:** Added `.pre-commit-config.yaml` and `pyproject.toml` to enforce code quality gates (black, ruff, mypy, prettier, eslint, tsc) automatically on every `git commit`.
+
+---
+
+## Development Setup
+
+After cloning, install the pre-commit hooks once:
+
+```bash
+pip install pre-commit
+pre-commit install
+```
+
+From that point on, every `git commit` will automatically run:
+
+| Hook           | What it checks                                          |
+| -------------- | ------------------------------------------------------- |
+| `black`        | Python formatting (auto-fixes)                          |
+| `ruff`         | Python linting & unused imports (auto-fixes)            |
+| `mypy`         | Python type checking                                    |
+| `prettier`     | TypeScript/JS/CSS/JSON/Markdown formatting (auto-fixes) |
+| `eslint`       | TypeScript/React lint rules                             |
+| `tsc --noEmit` | TypeScript compilation errors                           |
+
+To run all hooks manually on the full codebase:
+
+```bash
+pre-commit run --all-files
+```
 
 ---
 
 ## Technology Stack
 
-* **Frontend:** React, Vite, TypeScript, Tailwind CSS, Lucide Icons
-* **Backend:** FastAPI (Python), Uvicorn, Pydantic, HTTPX
-* **PDF Processing:** PyMuPDF (fitz)
-* **Computer Vision:** Pillow (PIL) and NumPy
-* **OCR engine:** Tesseract OCR (via `pytesseract`)
-* **Data Processing:** pandas
-* **Testing:** Python `unittest` framework, FastAPI TestClient
+- **Frontend:** React, Vite, TypeScript, Tailwind CSS, Lucide Icons
+- **Backend:** FastAPI (Python), Uvicorn, Pydantic, HTTPX
+- **PDF Processing:** PyMuPDF (fitz)
+- **Computer Vision:** Pillow (PIL) and NumPy
+- **OCR engine:** Tesseract OCR (via `pytesseract`)
+- **Data Processing:** pandas
+- **Testing:** Python `unittest` framework, FastAPI TestClient
 
 ---
 
@@ -81,11 +110,13 @@ docker compose up --build -d
 ```
 
 Open your browser to:
+
 ```text
 http://localhost:8080
 ```
 
 Verify that the local containers are healthy and reachable using the integration smoke test:
+
 ```bash
 python3 scripts/docker_smoke_test.py
 ```
@@ -95,7 +126,9 @@ python3 scripts/docker_smoke_test.py
 If you prefer to run the components locally without Docker:
 
 #### System Dependency (Tesseract OCR)
+
 Install the Tesseract binary and language packs (English & German):
+
 ```bash
 # Debian/Ubuntu
 sudo apt-get update && sudo apt-get install -y tesseract-ocr tesseract-ocr-deu tesseract-ocr-eng
@@ -105,6 +138,7 @@ sudo dnf install tesseract tesseract-langpack-deu tesseract-langpack-eng
 ```
 
 #### Backend Setup
+
 ```bash
 # Initialize virtual env
 python3 -m venv .venv
@@ -116,11 +150,13 @@ uvicorn server.app.api:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 #### Frontend Setup
+
 ```bash
 cd client
 npm install
 npm run dev
 ```
+
 Open [http://localhost:5173](http://localhost:5173). The Vite dev server will proxy API calls to the FastAPI backend at `http://127.0.0.1:8000`.
 
 ---
@@ -128,14 +164,18 @@ Open [http://localhost:5173](http://localhost:5173). The Vite dev server will pr
 ## Testing
 
 ### Python Tests (Backend & Pipeline)
+
 Run all 120+ backend unit and integration tests from the project root:
+
 ```bash
 python3 -m unittest discover -s server/tests
 python3 -m unittest discover -s tests
 ```
 
 ### Frontend Tests (React)
+
 Run frontend unit and lint checks:
+
 ```bash
 cd client
 npm run lint
