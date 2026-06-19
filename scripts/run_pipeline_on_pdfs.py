@@ -347,8 +347,37 @@ def main() -> None:
             export_result = export_contract_openings_csv(REPO_ROOT, plan_id, candidates)
             csv_path.write_text(Path(export_result["path"]).read_text(encoding="utf-8"), encoding="utf-8")
             print(f"    Saved contract CSV to: {csv_path}")
+
+            # 4. Generate CV overlay image
+            overlay_path = None
+            try:
+                overlay_dir = output_root / "overlays"
+                overlay_dir.mkdir(parents=True, exist_ok=True)
+                overlay_path = overlay_dir / f"{plan_id}_overlay.png"
+                print(f"    Generating CV overlay to: {overlay_path}")
+                
+                from src.candidates.overlay_drawer import draw_candidates_overlay
+                draw_candidates_overlay(
+                    image_path=png_path,
+                    candidates_path=candidates_path,
+                    output_path=overlay_path
+                )
+                print(f"    Saved CV overlay to: {overlay_path}")
+            except Exception as draw_err:
+                print(f"  Error generating CV overlay for {plan_id}: {draw_err}", file=sys.stderr)
+                if overlay_path and overlay_path.is_file():
+                    try:
+                        overlay_path.unlink()
+                    except Exception:
+                        pass
+                raise draw_err
         except Exception as e:
             print(f"  Error running extraction pipeline for {plan_id}: {e}", file=sys.stderr)
+            if "overlay_path" in locals() and overlay_path and overlay_path.is_file():
+                try:
+                    overlay_path.unlink()
+                except Exception:
+                    pass
 
     print("\nAll PDFs processed successfully.")
 

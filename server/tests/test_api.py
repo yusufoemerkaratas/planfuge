@@ -628,10 +628,59 @@ class ApiTests(unittest.TestCase):
             response_missing = client.get("/api/downloads/csv/MISSING")
             self.assertEqual(response_missing.status_code, 404)
 
+    @unittest.mock.patch("subprocess.run")
+    def test_import_pdf_generates_overlay(self, mock_run) -> None:
+        import unittest.mock
+        from fastapi.testclient import TestClient
 
+        pdf_content = b"%PDF-1.4 dummy pdf content for overlay test"
 
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
 
+            def mock_subprocess(*args, **kwargs):
+                # 1. Create rendered page PNG
+                png_dir = root / "outputs" / "rendered"
+                png_dir.mkdir(parents=True, exist_ok=True)
+                (png_dir / "overlay_plan.png").touch()
 
+                # 2. Create candidates json
+                cand_dir = root / "outputs" / "candidates"
+                cand_dir.mkdir(parents=True, exist_ok=True)
+                (cand_dir / "overlay_plan_candidates.json").touch()
+
+                # 3. Create overlay image
+                overlay_dir = root / "outputs" / "overlays"
+                overlay_dir.mkdir(parents=True, exist_ok=True)
+                (overlay_dir / "overlay_plan_overlay.png").write_bytes(b"mocked_overlay_bytes")
+
+                res = unittest.mock.MagicMock()
+                res.returncode = 0
+                return res
+
+            mock_run.side_effect = mock_subprocess
+
+            app.state.project_root = root
+            client = TestClient(app)
+            response = client.post(
+                "/api/import/pdf",
+                files={"file": ("overlay_plan.pdf", pdf_content, "application/pdf")}
+            )
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()["status"], "processing")
+
+            # Verify the status shows completed and the overlay image is available
+            status_response = client.get("/api/status/overlay_plan")
+            self.assertEqual(status_response.status_code, 200)
+            status_data = status_response.json()
+            self.assertEqual(status_data["status"], "completed")
+            
+            # This assertion should FAIL because the backend pipeline script does not yet create the overlay image.
+            self.assertTrue(status_data["files"]["overlay_image"])
+
+            # Verify that requesting the overlay image returns the saved image content
+            overlay_img_response = client.get("/api/images/overlays/overlay_plan")
+            self.assertEqual(overlay_img_response.status_code, 200)
 
 
 if __name__ == "__main__":
