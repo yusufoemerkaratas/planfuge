@@ -5,7 +5,6 @@
 !fixtures/.gitkeep
 !imports/
 !imports/.gitkeep
-!imports/*.pdf
 !exports/
 !exports/.gitkeep
 !exports/*.csv
@@ -16,15 +15,14 @@
 !config/
 !config/example_plan_config.json
 !pages/
-!pages/*.png
+!pages/.gitkeep
 !metadata/
 !metadata/.gitkeep
-!metadata/*.json
 !annotations/
 !annotations/.gitkeep
 !annotations/*.json
 !ocr_benchmark/
 !ocr_benchmark/**
 !words/
-!words/*.json
+!words/.gitkeep
 !*.py
