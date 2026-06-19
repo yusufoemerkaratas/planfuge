@@ -54,3 +54,34 @@ body {
     border-color 0.3s ease,
     color 0.3s ease;
 }
+
+.candidate-overlay-box {
+  transition:
+    fill-opacity 150ms ease,
+    stroke-width 150ms ease;
+}
+
+.candidate-overlay-box:hover,
+.candidate-overlay-box:focus-visible {
+  fill-opacity: 0.28;
+  outline: none;
+}
+
+.candidate-overlay-box-pulse {
+  animation: candidate-overlay-box-pulse 700ms ease-out;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@keyframes candidate-overlay-box-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  45% {
+    opacity: 0.35;
+    transform: scale(1.08);
+  }
+}

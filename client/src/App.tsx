@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   LayoutDashboard,
   FileCheck,
@@ -20,6 +20,7 @@ import {
   type CandidateSource,
 } from "./sampleMode";
 import { ThemeToggle } from "./ThemeToggle";
+import { CandidateOverlay } from "./CandidateOverlay";
 
 export interface Candidate {
   candidate_id: string;
@@ -34,6 +35,7 @@ export interface Candidate {
   reference: string | null;
   review_comment: string | null;
   crop_path: string | null;
+  bbox_image: number[];
 }
 
 type EditableCandidateField =
@@ -79,6 +81,10 @@ function App() {
     null,
   );
   const [showOverlay, setShowOverlay] = useState(false);
+  const [imageDimensions, setImageDimensions] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
 
   // Candidates states
   const [candidates, setCandidates] = useState<Candidate[]>([]);
@@ -92,6 +98,11 @@ function App() {
     null,
   );
   const [cropError, setCropError] = useState(false);
+  const [pulsingCandidateId, setPulsingCandidateId] = useState<string | null>(
+    null,
+  );
+  const [pulseRevision, setPulseRevision] = useState(0);
+  const candidateRowRefs = useRef(new Map<string, HTMLTableRowElement>());
   const [isExporting, setIsExporting] = useState<{
     csv: boolean;
     json: boolean;
@@ -111,10 +122,12 @@ function App() {
     setCandidateSource("raw");
     setPipelineStatus(null);
     setShowOverlay(false);
+    setImageDimensions(null);
     setLoadingCandidates(true);
     setSaveSuccess(false);
     setSelectedCandidateId(null);
     setCropError(false);
+    setPulsingCandidateId(null);
     setUploadFile(null);
     setUploadProgress(null);
     setUploadError(null);
@@ -364,10 +377,34 @@ function App() {
     );
   };
 
-  const handleCandidateSelection = (candidateId: string) => {
+  const selectCandidate = (candidateId: string) => {
     setSelectedCandidateId(candidateId);
     setCropError(false);
   };
+
+  const handleTableCandidateSelection = (candidateId: string) => {
+    selectCandidate(candidateId);
+    setPulsingCandidateId(candidateId);
+    setPulseRevision((revision) => revision + 1);
+  };
+
+  const setCandidateRowRef = (
+    candidateId: string,
+    row: HTMLTableRowElement | null,
+  ) => {
+    if (row) {
+      candidateRowRefs.current.set(candidateId, row);
+      return;
+    }
+    candidateRowRefs.current.delete(candidateId);
+  };
+
+  useEffect(() => {
+    if (!selectedCandidateId) return;
+    candidateRowRefs.current
+      .get(selectedCandidateId)
+      ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [selectedCandidateId]);
 
   const selectedCandidate = candidates.find(
     (c) => c.candidate_id === selectedCandidateId,
@@ -765,8 +802,25 @@ function App() {
                         }
                         alt={`Plan ${activePlan} ${showOverlay ? "Overlay" : ""}`}
                         className="max-w-full h-auto object-contain block"
+                        onLoad={(event) =>
+                          setImageDimensions({
+                            width: event.currentTarget.naturalWidth,
+                            height: event.currentTarget.naturalHeight,
+                          })
+                        }
                         onError={() => setImageError(true)}
                       />
+                      {!showOverlay && imageDimensions && (
+                        <CandidateOverlay
+                          candidates={candidates}
+                          imageWidth={imageDimensions.width}
+                          imageHeight={imageDimensions.height}
+                          selectedCandidateId={selectedCandidateId}
+                          pulsingCandidateId={pulsingCandidateId}
+                          pulseRevision={pulseRevision}
+                          onSelect={selectCandidate}
+                        />
+                      )}
                     </div>
                   )}
                 </div>
@@ -860,8 +914,11 @@ function App() {
                             {candidates.map((c) => (
                               <tr
                                 key={c.candidate_id}
+                                ref={(row) =>
+                                  setCandidateRowRef(c.candidate_id, row)
+                                }
                                 onClick={() =>
-                                  handleCandidateSelection(c.candidate_id)
+                                  handleTableCandidateSelection(c.candidate_id)
                                 }
                                 className={`transition-colors cursor-pointer ${selectedCandidateId === c.candidate_id ? "bg-primary/10 hover:bg-primary/20" : "hover:bg-muted/30"}`}
                               >
