@@ -1,19 +1,20 @@
-# PlanFuge
+# PlanFuge (Fork)
 
-PlanFuge (Plan2Print) is an automated construction plan analysis and opening verification platform designed for concrete 3D printing preparation. It supports the ingestion, visual review, and structured export of wall/slab openings, ceiling recesses, and drilling locations from blueprint drawings.
+This repository is a fork of [beyzabetulay/planfuge](https://github.com/beyzabetulay/planfuge) containing enhancements, test suites, and CI/CD pipelines developed on top of the original prototype built for the **Riedel Bau Hackathon Challenge**.
 
-The project is intentionally **human-in-the-loop (HITL)**: it does not claim fully automatic construction-plan understanding. It creates structured candidate opening coordinates using computer vision and OCR, renders evidence overlays to a reviewer, and exports production-ready verification datasets for downstream fabricators.
+PlanFuge supports the extraction, review, and export of ceiling recesses and slab opening candidates from construction plans for concrete 3D printing preparation. It uses a **human-in-the-loop (HITL)** approach: extracting candidate opening coordinates via computer vision and OCR, rendering evidence overlays to a reviewer, and exporting verified datasets.
 
 ---
 
-## Key Features
+## Fork Improvements & Contributions
 
-* **Asynchronous PDF Processing:** Ingests high-resolution blueprint PDFs, automatically generating layout configuration parameters and rendering them at 300 DPI.
-* **Hybrid Candidate Extraction:** Combines red annotation detection (CV) with Tesseract OCR on crop regions, falling back to searchable PDF word coordinate coordinates if OCR is noisy.
-* **High-Resolution CV Overlay Generation:** Draws status-coded bounding box overlays (Blue for `verified`, Red for `needs_review`) and candidate ID labels directly on the drawing with dynamically scaling border stroke widths and font sizes.
-* **Physics-Based Calculations:** Automatically computes volume ($cm^3$) and weight ($kg$) configurations of openings based on default concrete density and dimensions.
-* **Automated Exporters:** Generates finalized contract CSVs and verified openings JSON models ready for Concrete 3D printing preparation.
-* **Automated CI/CD:** Fully integrated with GitHub Actions to run linters, client tests, and backend unit/integration tests (120+ tests) on every pull request.
+The following features and quality-of-life enhancements were implemented in this fork:
+
+* **Visual Bounding Box Overlay Pipeline:** Implemented [overlay_drawer.py](file:///home/yusufkaratas/Documents/planfuge/planfuge/src/candidates/overlay_drawer.py) to dynamically draw status-coded bounding box rectangles (Blue for `verified`, Red for `needs_review`) and candidate ID labels directly on blueprint drawings with proportional line width scaling and system fallback fonts.
+* **Pipeline Integration & Clean Teardown:** Integrated the overlay drawing step into [run_pipeline_on_pdfs.py](file:///home/yusufkaratas/Documents/planfuge/planfuge/scripts/run_pipeline_on_pdfs.py) to trigger automatically post-extraction, with fail-safe deletion of partial images on failure.
+* **Comprehensive Test Suites:** Added new unit tests (`tests/test_overlay_drawer.py`) and FastAPI endpoints/integration tests (`server/tests/test_api.py`) to verify the pipeline state and image loading, with all 120+ tests passing.
+* **Onboarding & Clean Slate Setup:** Cleared all tracked sample PDF/PNG outputs from Git, redesigned the empty-state frontend dashboard into a user onboarding UI, and updated `.gitignore` rules for production standards.
+* **CI/CD Integration:** Set up a [ci.yml](file:///home/yusufkaratas/Documents/planfuge/planfuge/.github/workflows/ci.yml) pipeline using GitHub Actions to automatically run backend unit tests, frontend linters, and frontend build validations.
 
 ---
 
@@ -126,12 +127,9 @@ Open [http://localhost:5173](http://localhost:5173). The Vite dev server will pr
 
 ## Testing
 
-The project maintains high testing standards for all calculation modules, parsers, and endpoints.
-
 ### Python Tests (Backend & Pipeline)
 Run all 120+ backend unit and integration tests from the project root:
 ```bash
-# Discover and run all unit tests
 python3 -m unittest discover -s server/tests
 python3 -m unittest discover -s tests
 ```
@@ -143,6 +141,3 @@ cd client
 npm run lint
 npm run test
 ```
-
-### GitHub Actions CI
-The CI runner on every Push and Pull Request to `master` builds the environment, installs system dependencies (`tesseract-ocr`), runs backend unittests, and lint-checks/builds the client dashboard.
