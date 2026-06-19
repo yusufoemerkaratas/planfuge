@@ -114,6 +114,48 @@ Candidates without parsed dimensions stay in the candidate JSON for review. They
 
 ## Setup
 
+### Docker Compose (Recommended)
+
+Docker Compose installs the Python, Node, Nginx and Tesseract runtime dependencies inside the images. From the repository root, run:
+
+```bash
+docker compose up --build --detach --wait
+```
+
+Open:
+
+```text
+http://localhost:8080
+```
+
+On first startup, missing candidate JSON files are generated from the tracked searchable-PDF word data. Existing pipeline and review output is preserved in the host `outputs/` directory. Uploaded and tracked plan data remains in `data/`.
+
+Verify the complete UI/API runtime:
+
+```bash
+python3 scripts/docker_smoke_test.py
+```
+
+Useful lifecycle commands:
+
+```bash
+docker compose logs --follow
+docker compose down
+```
+
+To use another host port:
+
+```bash
+PLANFUGE_PORT=8081 docker compose up --build --detach --wait
+```
+
+Run the full PDF/CV/OCR pipeline inside Docker when needed:
+
+```bash
+docker compose run --rm backend \
+  python scripts/run_pipeline_on_pdfs.py --pdf-dir data/imports --out outputs
+```
+
 Run these commands from the repository root.
 
 ### Python Environment
