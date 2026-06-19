@@ -507,7 +507,7 @@ function App() {
             <div className="p-3 bg-white/10 border border-white/20 rounded-md flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-white shrink-0 mt-0.5" />
               <p className="text-sm text-white/90">
-                No plan files found. Please add PNG files to <strong>data/pages/</strong>.
+                No plan files found. Please click <strong>Upload New PDF</strong> above to import a plan.
               </p>
             </div>
           ) : (
