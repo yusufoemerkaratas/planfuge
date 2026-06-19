@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { LayoutDashboard, FileCheck, Save, Download, FileJson, AlertCircle, Maximize2, Loader2, CheckCircle2, Image as ImageIcon, Layers } from 'lucide-react'
 import { parseMetadataResponse, type MetadataResult } from './metadata'
 import { canSaveCandidates, candidateSourceFromApi, candidateSourceLabel, type CandidateSource } from './sampleMode'
+import { ThemeToggle } from './ThemeToggle'
 
 export interface Candidate {
   candidate_id: string;
@@ -539,7 +540,7 @@ function App() {
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
         {/* Header */}
         <header className="h-16 flex items-center px-8 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10 shrink-0">
-          <h2 className="text-lg font-medium text-foreground flex items-center gap-3">
+          <h2 className="text-lg font-medium text-foreground flex items-center gap-3 flex-1">
             {activePlan ? `Dashboard — ${activePlan}` : "Dashboard"}
             {metadata?.image_width_px && metadata.image_height_px && (
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground border border-border">
@@ -560,6 +561,7 @@ function App() {
               </span>
             )}
           </h2>
+          <ThemeToggle />
         </header>
 
         {/* Content Area - Split View */}
