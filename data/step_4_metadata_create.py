@@ -1,17 +1,19 @@
-import os
 import json
+import os
 import re
 
 from PIL import Image
+
 Image.MAX_IMAGE_PIXELS = None  # disable size limit for large plans
 
-PAGES_FOLDER   = "pages"
+PAGES_FOLDER = "pages"
 IMPORTS_FOLDER = "imports"
 METADATA_FOLDER = "metadata"
-RAW_TEXT_FILE  = "fixtures/raw_text.csv"
+RAW_TEXT_FILE = "fixtures/raw_text.csv"
 
 # Load raw text to search for scale info
 import csv
+
 raw_texts = {}
 with open(RAW_TEXT_FILE, encoding="utf-8-sig") as f:
     for row in csv.DictReader(f):
@@ -20,15 +22,18 @@ with open(RAW_TEXT_FILE, encoding="utf-8-sig") as f:
             raw_texts[plan] = []
         raw_texts[plan].append(row["text"])
 
+
 def find_scale(texts):
     for t in texts:
-        m = re.search(r'M\s*1\s*:\s*\d+', t, re.IGNORECASE)
+        m = re.search(r"M\s*1\s*:\s*\d+", t, re.IGNORECASE)
         if m:
             return m.group(0).replace(" ", "")
     return "unknown"
 
+
 def pdf_exists(plan_id):
     return os.path.exists(os.path.join(IMPORTS_FOLDER, plan_id + ".pdf"))
+
 
 # Process each PNG
 for png_file in sorted(os.listdir(PAGES_FOLDER)):
@@ -51,8 +56,8 @@ for png_file in sorted(os.listdir(PAGES_FOLDER)):
         "source_type": "rendered_png",
         "original_pdf_available": pdf_exists(plan_id),
         "scale_text_visible": find_scale(raw_texts.get(plan_id, [])),
-        "contains_red_markups": True,   # visually confirmed
-        "notes": ""
+        "contains_red_markups": True,  # visually confirmed
+        "notes": "",
     }
 
     # Save JSON

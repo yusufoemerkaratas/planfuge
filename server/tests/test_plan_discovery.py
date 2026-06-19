@@ -24,15 +24,15 @@ class PlanDiscoveryTests(unittest.TestCase):
             root = Path(temp_dir)
             pages_dir = root / "data" / "pages"
             pages_dir.mkdir(parents=True)
-            
+
             # Create dummy files
             (pages_dir / "SP_U1_0004.png").touch()
             (pages_dir / "SP_U1_0003.png").touch()
-            (pages_dir / "SP_U1_0005.jpg").touch() # Should be ignored (not .png)
-            (pages_dir / "random.txt").touch() # Should be ignored
-            
+            (pages_dir / "SP_U1_0005.jpg").touch()  # Should be ignored (not .png)
+            (pages_dir / "random.txt").touch()  # Should be ignored
+
             result = discover_plans(root)
-            
+
             self.assertEqual(len(result), 2)
             # Should be sorted
             self.assertEqual(result[0], "SP_U1_0003")

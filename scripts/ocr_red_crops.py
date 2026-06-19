@@ -12,7 +12,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from src.image.ocr_crops import run_ocr_on_crops, check_tesseract_availability
+from src.image.ocr_crops import check_tesseract_availability, run_ocr_on_crops
 
 
 def main() -> None:
@@ -39,7 +39,7 @@ def main() -> None:
     args = parser.parse_args()
 
     plan_id = args.plan_id
-    
+
     # Resolve default paths
     crops_json_path = (
         Path(args.crops_json)
@@ -58,7 +58,7 @@ def main() -> None:
         sys.exit(1)
 
     try:
-        with open(crops_json_path, "r", encoding="utf-8") as f:
+        with open(crops_json_path, encoding="utf-8") as f:
             crops_metadata = json.load(f)
     except Exception as e:
         print(f"Error reading crops metadata file: {e}", file=sys.stderr)
@@ -68,8 +68,14 @@ def main() -> None:
 
     # Check tesseract availability
     if not check_tesseract_availability():
-        print("Warning: Tesseract OCR is not fully available (pytesseract or system binary missing).", file=sys.stderr)
-        print("Proceeding with graceful fallback (ocr_available=False for all crops).", file=sys.stderr)
+        print(
+            "Warning: Tesseract OCR is not fully available (pytesseract or system binary missing).",
+            file=sys.stderr,
+        )
+        print(
+            "Proceeding with graceful fallback (ocr_available=False for all crops).",
+            file=sys.stderr,
+        )
 
     print(f"Running OCR on crops (PSM={args.psm})...")
     results = run_ocr_on_crops(crops_metadata, psm=args.psm)

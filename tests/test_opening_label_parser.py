@@ -135,6 +135,5 @@ class OpeningLabelParserTest(unittest.TestCase):
         self.assertEqual(p5["height_mm"], 380)
 
 
-
 if __name__ == "__main__":
     unittest.main()

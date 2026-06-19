@@ -1,10 +1,9 @@
-import tempfile
 import json
+import tempfile
 import unittest
 from pathlib import Path
 
 from server.app.services.candidate_loader import load_sample_candidates
-
 
 SAMPLE_PAYLOAD = {
     "plan_id": "SAMPLE_DEMO",

@@ -1,4 +1,5 @@
 import unittest
+
 from src.candidates.validation import compare_candidates_to_examples, compute_iou, is_center_inside
 
 
@@ -24,16 +25,8 @@ class TestValidation(unittest.TestCase):
 
     def test_compare_candidates_to_examples_matching(self):
         candidates = [
-            {
-                "candidate_id": "OP-001",
-                "bbox_image": [10, 10, 20, 20],
-                "raw_text": "WDB 50/50"
-            },
-            {
-                "candidate_id": "OP-002",
-                "bbox_image": [100, 100, 20, 20],
-                "raw_text": "Random"
-            }
+            {"candidate_id": "OP-001", "bbox_image": [10, 10, 20, 20], "raw_text": "WDB 50/50"},
+            {"candidate_id": "OP-002", "bbox_image": [100, 100, 20, 20], "raw_text": "Random"},
         ]
 
         examples = [
@@ -41,20 +34,20 @@ class TestValidation(unittest.TestCase):
                 "example_id": "EX-001",
                 "rough_bbox_image": [12, 12, 18, 18],  # high overlap / center inside
                 "is_opening_relevant": True,
-                "expected_text": "WDB 50/50"
+                "expected_text": "WDB 50/50",
             },
             {
                 "example_id": "EX-002",
                 "rough_bbox_image": [200, 200, 10, 10],  # missed relevant
                 "is_opening_relevant": True,
-                "expected_text": "Missed Label"
+                "expected_text": "Missed Label",
             },
             {
                 "example_id": "EX-003",
                 "rough_bbox_image": [102, 102, 18, 18],  # matches a non-relevant
                 "is_opening_relevant": False,
-                "expected_text": "Comment Annotation"
-            }
+                "expected_text": "Comment Annotation",
+            },
         ]
 
         report = compare_candidates_to_examples(candidates, examples, iou_threshold=0.1)
@@ -87,7 +80,7 @@ class TestValidation(unittest.TestCase):
             {
                 "candidate_id": "OP-001",
                 "bbox_image": [500, 500, 20, 20],
-                "raw_text": "New Detection"
+                "raw_text": "New Detection",
             }
         ]
         examples = []

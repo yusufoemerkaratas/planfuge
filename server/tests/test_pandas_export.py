@@ -1,6 +1,7 @@
 import tempfile
 import unittest
 from pathlib import Path
+
 import pandas as pd
 
 from server.app.services.pandas_export import export_verified_openings_csv
@@ -45,7 +46,7 @@ class PandasExportTests(unittest.TestCase):
             # Verify using pandas
             df = pd.read_csv(saved_file)
             self.assertEqual(len(df), 2)
-            
+
             columns = list(df.columns)
             self.assertIn("candidate_id", columns)
             self.assertIn("source", columns)
@@ -59,7 +60,7 @@ class PandasExportTests(unittest.TestCase):
             self.assertEqual(df.iloc[0]["width_mm"], 100.0)
             self.assertEqual(df.iloc[1]["width_mm"], 400.0)
             self.assertEqual(df.iloc[1]["height_mm"], 500.0)
-            
+
             # Missing columns like diameter_mm should be created and be NaN/empty
             self.assertTrue("diameter_mm" in columns)
             self.assertTrue(pd.isna(df.iloc[0]["diameter_mm"]))
@@ -75,13 +76,13 @@ class PandasExportTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             result = export_verified_openings_csv(root, "SP_U1_0006", candidates)
-            
+
             self.assertEqual(result["exported_count"], 0)
 
             saved_file = Path(result["path"])
             df = pd.read_csv(saved_file)
             self.assertEqual(len(df), 0)
-            
+
             columns = list(df.columns)
             self.assertIn("candidate_id", columns)
             self.assertIn("width_mm", columns)

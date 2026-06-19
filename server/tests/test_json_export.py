@@ -54,14 +54,16 @@ class JsonExportTests(unittest.TestCase):
 
             openings = payload["openings"]
             self.assertEqual(len(openings), 2)
-            
+
             # Verify filtering
             self.assertEqual(openings[0]["candidate_id"], "cand-001")
             self.assertEqual(openings[1]["candidate_id"], "cand-004")
 
             # Verify field stripping
             self.assertNotIn("extra_field", openings[0])
-            self.assertNotIn("status", openings[0])  # Status shouldn't be in the final export per issue
+            self.assertNotIn(
+                "status", openings[0]
+            )  # Status shouldn't be in the final export per issue
             self.assertIn("width_mm", openings[0])
             self.assertIn("height_mm", openings[1])
 
@@ -76,7 +78,7 @@ class JsonExportTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             result = export_verified_openings(root, "SP_U1_0004", candidates)
-            
+
             saved_file = Path(result["path"])
             payload = json.loads(saved_file.read_text())
 

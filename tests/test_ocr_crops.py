@@ -1,13 +1,13 @@
-import unittest
-from unittest.mock import patch, MagicMock
-from pathlib import Path
 import tempfile
-import shutil
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
 from PIL import Image
 
 # We import the functions to test. Since they do not exist yet,
 # running this test file initially will fail (Red phase).
-from src.image.ocr_crops import run_ocr_on_crops, check_tesseract_availability
+from src.image.ocr_crops import check_tesseract_availability, run_ocr_on_crops
 
 
 class TestOcrCrops(unittest.TestCase):
@@ -23,7 +23,7 @@ class TestOcrCrops(unittest.TestCase):
                 "region_id": "RED-001",
                 "crop_path": str(self.crop_path),
                 "bbox_image": [10, 10, 20, 20],
-                "crop_bbox_image": [5, 5, 25, 25]
+                "crop_bbox_image": [5, 5, 25, 25],
             }
         ]
 
@@ -72,6 +72,7 @@ class TestOcrCrops(unittest.TestCase):
 
         # Side effect: first call (deu+eng) fails, second call (eng) succeeds
         from pytesseract import TesseractError
+
         # A simple exception representing missing lang pack or other error
         err = TesseractError(1, "Error opening translation file")
         mock_image_to_string.side_effect = [err, "  WDB 70/20  "]
@@ -99,6 +100,7 @@ class TestOcrCrops(unittest.TestCase):
 
         # Side effect: first and second calls fail, third (no lang) succeeds
         from pytesseract import TesseractError
+
         err = TesseractError(1, "Error opening translation file")
         mock_image_to_string.side_effect = [err, err, "  WDB 70/20  "]
 
@@ -122,6 +124,7 @@ class TestOcrCrops(unittest.TestCase):
 
         # Side effect: all calls fail
         from pytesseract import TesseractError
+
         err = TesseractError(1, "Error running tesseract")
         mock_image_to_string.side_effect = err
 

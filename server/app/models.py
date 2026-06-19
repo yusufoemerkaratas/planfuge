@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 
-
 GEOMETRY_ROUND = "round"
 GEOMETRY_RECTANGULAR = "rectangular"
 
@@ -34,4 +33,3 @@ class Opening:
     color_zone_id: str = "zone_unknown"
     confidence: float | None = None
     review_required: bool = False
-

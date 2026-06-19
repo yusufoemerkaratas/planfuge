@@ -25,16 +25,16 @@ class PipelineStatusTests(unittest.TestCase):
     def test_partial_state_returns_correct_flags(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            
+
             # Create some dummy files
             (root / "data" / "pages").mkdir(parents=True)
             (root / "data" / "pages" / "SP_U1_0009.png").touch()
-            
+
             (root / "outputs" / "crops").mkdir(parents=True)
-            
+
             (root / "outputs" / "exports").mkdir(parents=True)
             (root / "outputs" / "exports" / "SP_U1_0009_verified_openings.csv").touch()
-            
+
             result = check_pipeline_status(root, "SP_U1_0009")
             files = result["files"]
 

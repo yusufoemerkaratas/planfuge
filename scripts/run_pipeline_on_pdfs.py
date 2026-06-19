@@ -18,12 +18,11 @@ except ImportError:
     print("Error: PyMuPDF (fitz) is not installed. Please install it first.", file=sys.stderr)
     sys.exit(1)
 
-from src.candidates.png_candidate_extractor import run_png_extraction_pipeline
-from server.app.models import Opening, WeightConfig, GEOMETRY_ROUND, GEOMETRY_RECTANGULAR
+from server.app.models import GEOMETRY_RECTANGULAR, GEOMETRY_ROUND, Opening
 from server.app.services.contract_candidate_export import export_contract_openings_csv
-from server.app.services.csv_export import serialize_csv, to_csv_row
-from src.config.plan_config import PlanConfig
+from src.candidates.png_candidate_extractor import run_png_extraction_pipeline
 from src.config.auto_config import auto_generate_config
+from src.config.plan_config import PlanConfig
 
 
 def parse_floor(plan_id: str) -> str:
@@ -42,8 +41,13 @@ def is_point_in_polygon(x: float, y: float, polygon: list[list[float]]) -> bool:
     j = num - 1
     c = False
     for i in range(num):
-        if ((polygon[i][1] > y) != (polygon[j][1] > y)) and \
-                (x < (polygon[j][0] - polygon[i][0]) * (y - polygon[i][1]) / (polygon[j][1] - polygon[i][1]) + polygon[i][0]):
+        if ((polygon[i][1] > y) != (polygon[j][1] > y)) and (
+            x
+            < (polygon[j][0] - polygon[i][0])
+            * (y - polygon[i][1])
+            / (polygon[j][1] - polygon[i][1])
+            + polygon[i][0]
+        ):
             c = not c
         j = i
     return c
@@ -91,46 +95,46 @@ def compute_grid_coordinate(x: float, y: float, plan_config: PlanConfig) -> str:
     # ---- Legacy anchor-based fallback ----
     if not plan_config.grid_anchors:
         return "grid_unknown"
-        
+
     anchors = plan_config.grid_anchors
     tl_pix = anchors.get("top_left_pixel")
     tl_coord = anchors.get("top_left_coord")
     br_pix = anchors.get("bottom_right_pixel")
     br_coord = anchors.get("bottom_right_coord")
-    
+
     if not (tl_pix and tl_coord and br_pix and br_coord):
         return "grid_unknown"
-        
+
     try:
+
         def parse_coord(coord_str: str) -> tuple[int, int]:
             parts = coord_str.split("-")
             letter = parts[0].upper()
             number = int(parts[1])
             letter_idx = ord(letter) - ord("A")
             return letter_idx, number
-            
+
         tl_l_idx, tl_n = parse_coord(tl_coord)
         br_l_idx, br_n = parse_coord(br_coord)
-        
+
         dx_pix = br_pix[0] - tl_pix[0]
         dy_pix = br_pix[1] - tl_pix[1]
-        
+
         if dx_pix == 0 or dy_pix == 0:
             return "grid_unknown"
-            
+
         x_ratio = (x - tl_pix[0]) / dx_pix
         l_idx = int(round(tl_l_idx + x_ratio * (br_l_idx - tl_l_idx)))
         l_idx = max(0, min(25, l_idx))
         letter = chr(ord("A") + l_idx)
-        
+
         y_ratio = (y - tl_pix[1]) / dy_pix
         n = int(round(tl_n + y_ratio * (br_n - tl_n)))
         n = max(1, min(100, n))
-        
+
         return f"{letter}-{n}"
     except Exception:
         return "grid_unknown"
-
 
 
 def candidate_to_opening(cand: dict, plan_id: str, plan_config: PlanConfig) -> Opening:
@@ -156,18 +160,18 @@ def candidate_to_opening(cand: dict, plan_id: str, plan_config: PlanConfig) -> O
     floor = parse_floor(plan_id)
     confidence = cand.get("confidence", 0.5)
     status = cand.get("status", "needs_review")
-    
+
     # Check if default height was used
-    is_default_height = (cand.get("ra_value") is None and cand.get("ok_value") is None)
+    is_default_height = cand.get("ra_value") is None and cand.get("ok_value") is None
 
     # Issue #56 review rules
-    review_required = (status == "needs_review" or confidence < 0.60 or is_default_height)
+    review_required = status == "needs_review" or confidence < 0.60 or is_default_height
 
     # Calculate centroids
     bbox = cand.get("bbox_image", [0, 0, 0, 0])
     cx = bbox[0] + bbox[2] / 2
     cy = bbox[1] + bbox[3] / 2
-    
+
     grid_coord = compute_grid_coordinate(cx, cy, plan_config)
     color_zone = compute_color_zone(cx, cy, plan_config)
 
@@ -188,36 +192,42 @@ def candidate_to_opening(cand: dict, plan_id: str, plan_config: PlanConfig) -> O
     )
 
 
-def group_openings(openings: list[Opening], candidates: list[dict], max_pixel_dist: float = 2000.0) -> list[Opening]:
+def group_openings(
+    openings: list[Opening], candidates: list[dict], max_pixel_dist: float = 2000.0
+) -> list[Opening]:
     centroids = []
     for cand in candidates:
         bbox = cand.get("bbox_image", [0, 0, 0, 0])
         cx = bbox[0] + bbox[2] / 2
         cy = bbox[1] + bbox[3] / 2
         centroids.append((cx, cy))
-        
+
     grouped = []
     used = set()
-    
+
     for i, op in enumerate(openings):
         if i in used:
             continue
-            
+
         curr_op = op
         qty = 1
         used.add(i)
-        
+
         for j in range(i + 1, len(openings)):
             if j in used:
                 continue
-                
+
             other = openings[j]
             # Check grouping criteria:
             # 1. Same geometry
             if curr_op.geometry != other.geometry:
                 continue
             # 2. Same dimensions
-            if curr_op.length_cm != other.length_cm or curr_op.width_cm != other.width_cm or curr_op.height_cm != other.height_cm:
+            if (
+                curr_op.length_cm != other.length_cm
+                or curr_op.width_cm != other.width_cm
+                or curr_op.height_cm != other.height_cm
+            ):
                 continue
             # 3. Same type
             if curr_op.opening_type != other.opening_type:
@@ -227,43 +237,40 @@ def group_openings(openings: list[Opening], candidates: list[dict], max_pixel_di
                 continue
             # 5. Nearby pixel distance
             import math
+
             dist = math.hypot(centroids[i][0] - centroids[j][0], centroids[i][1] - centroids[j][1])
             if dist > max_pixel_dist:
                 continue
-                
+
             # Merge!
             qty += 1
             used.add(j)
-            
-        from dataclasses import replace
-        grouped.append(replace(curr_op, quantity=qty))
-        
-    return grouped
 
+        from dataclasses import replace
+
+        grouped.append(replace(curr_op, quantity=qty))
+
+    return grouped
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--pdf",
-        default=None,
-        help="Path to a single PDF file to process. Overrides --pdf-dir."
+        "--pdf", default=None, help="Path to a single PDF file to process. Overrides --pdf-dir."
     )
     parser.add_argument(
         "--pdf-dir",
         default=str(REPO_ROOT.parent / "pdf"),
-        help="Path to the folder containing PDF files. Defaults to ../pdf."
+        help="Path to the folder containing PDF files. Defaults to ../pdf.",
     )
     parser.add_argument(
-        "--out",
-        default="outputs",
-        help="Output root directory. Defaults to 'outputs'."
+        "--out", default="outputs", help="Output root directory. Defaults to 'outputs'."
     )
     parser.add_argument(
         "--clean-red",
         action="store_true",
         default=True,
-        help="Enable HSV-based red markup/cloud pixel cleanup. Defaults to True."
+        help="Enable HSV-based red markup/cloud pixel cleanup. Defaults to True.",
     )
     args = parser.parse_args()
 
@@ -279,7 +286,9 @@ def main() -> None:
     else:
         pdf_dir = Path(args.pdf_dir).resolve()
         if not pdf_dir.exists() or not pdf_dir.is_dir():
-            print(f"Error: PDF directory not found or is not a directory: {pdf_dir}", file=sys.stderr)
+            print(
+                f"Error: PDF directory not found or is not a directory: {pdf_dir}", file=sys.stderr
+            )
             sys.exit(1)
         pdf_files = sorted(list(pdf_dir.glob("*.pdf")))
         if not pdf_files:
@@ -345,7 +354,9 @@ def main() -> None:
             csv_path = contract_dir / f"{plan_id}_contract.csv"
 
             export_result = export_contract_openings_csv(REPO_ROOT, plan_id, candidates)
-            csv_path.write_text(Path(export_result["path"]).read_text(encoding="utf-8"), encoding="utf-8")
+            csv_path.write_text(
+                Path(export_result["path"]).read_text(encoding="utf-8"), encoding="utf-8"
+            )
             print(f"    Saved contract CSV to: {csv_path}")
 
             # 4. Generate CV overlay image
@@ -355,12 +366,11 @@ def main() -> None:
                 overlay_dir.mkdir(parents=True, exist_ok=True)
                 overlay_path = overlay_dir / f"{plan_id}_overlay.png"
                 print(f"    Generating CV overlay to: {overlay_path}")
-                
+
                 from src.candidates.overlay_drawer import draw_candidates_overlay
+
                 draw_candidates_overlay(
-                    image_path=png_path,
-                    candidates_path=candidates_path,
-                    output_path=overlay_path
+                    image_path=png_path, candidates_path=candidates_path, output_path=overlay_path
                 )
                 print(f"    Saved CV overlay to: {overlay_path}")
             except Exception as draw_err:

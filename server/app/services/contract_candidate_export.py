@@ -67,7 +67,9 @@ def is_exportable_candidate(candidate: dict) -> bool:
     return candidate.get("width_mm") is not None and candidate.get("height_mm") is not None
 
 
-def group_openings(openings: list[Opening], candidates: list[dict], max_pixel_dist: float = 2000.0) -> list[Opening]:
+def group_openings(
+    openings: list[Opening], candidates: list[dict], max_pixel_dist: float = 2000.0
+) -> list[Opening]:
     centroids = []
     for candidate in candidates:
         bbox = candidate.get("bbox_image") or [0, 0, 0, 0]
@@ -115,9 +117,13 @@ def export_contract_openings_csv(project_root: Path, plan_id: str, candidates: l
     exports_dir = project_root / "outputs" / "exports"
     exports_dir.mkdir(parents=True, exist_ok=True)
 
-    exportable_candidates = [candidate for candidate in candidates if is_exportable_candidate(candidate)]
+    exportable_candidates = [
+        candidate for candidate in candidates if is_exportable_candidate(candidate)
+    ]
     plan_config = PlanConfig.load_for_plan(project_root, plan_id)
-    openings = [candidate_to_opening(candidate, plan_id, plan_config) for candidate in exportable_candidates]
+    openings = [
+        candidate_to_opening(candidate, plan_id, plan_config) for candidate in exportable_candidates
+    ]
     grouped_openings = group_openings(openings, exportable_candidates)
     rows = [to_csv_row(opening, WeightConfig()) for opening in grouped_openings]
 

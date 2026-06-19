@@ -1,8 +1,25 @@
-import { useState, useEffect } from 'react'
-import { LayoutDashboard, FileCheck, Save, Download, FileJson, AlertCircle, Maximize2, Loader2, CheckCircle2, Image as ImageIcon, Layers } from 'lucide-react'
-import { parseMetadataResponse, type MetadataResult } from './metadata'
-import { canSaveCandidates, candidateSourceFromApi, candidateSourceLabel, type CandidateSource } from './sampleMode'
-import { ThemeToggle } from './ThemeToggle'
+import { useState, useEffect } from "react";
+import {
+  LayoutDashboard,
+  FileCheck,
+  Save,
+  Download,
+  FileJson,
+  AlertCircle,
+  Maximize2,
+  Loader2,
+  CheckCircle2,
+  Image as ImageIcon,
+  Layers,
+} from "lucide-react";
+import { parseMetadataResponse, type MetadataResult } from "./metadata";
+import {
+  canSaveCandidates,
+  candidateSourceFromApi,
+  candidateSourceLabel,
+  type CandidateSource,
+} from "./sampleMode";
+import { ThemeToggle } from "./ThemeToggle";
 
 export interface Candidate {
   candidate_id: string;
@@ -19,361 +36,421 @@ export interface Candidate {
   crop_path: string | null;
 }
 
-type EditableCandidateField = 'status' | 'raw_text' | 'label_type' | 'width_mm' | 'height_mm' | 'diameter_mm' | 'ra_value' | 'ok_value' | 'reference' | 'review_comment'
-type EditableCandidateValue = string | number | null
+type EditableCandidateField =
+  | "status"
+  | "raw_text"
+  | "label_type"
+  | "width_mm"
+  | "height_mm"
+  | "diameter_mm"
+  | "ra_value"
+  | "ok_value"
+  | "reference"
+  | "review_comment";
+type EditableCandidateValue = string | number | null;
 
 interface PipelineStatus {
   files: {
-    page_image: boolean
-    overlay_image: boolean
-    candidates_json: boolean
-    review_json: boolean
-    export_json: boolean
-  }
+    page_image: boolean;
+    overlay_image: boolean;
+    candidates_json: boolean;
+    review_json: boolean;
+    export_json: boolean;
+  };
 }
 
 function candidateSourceBadgeClass(source: CandidateSource): string {
-  if (source === 'sample') return 'bg-amber-100 text-amber-800'
-  if (source === 'review') return 'bg-blue-100 text-blue-800'
-  return 'bg-slate-100 text-slate-700'
+  if (source === "sample") return "bg-amber-100 text-amber-800";
+  if (source === "review") return "bg-blue-100 text-blue-800";
+  return "bg-slate-100 text-slate-700";
 }
 
 function App() {
-  const [activePlan, setActivePlan] = useState<string | null>(null)
-  const [plans, setPlans] = useState<string[]>([])
-  const [loadingPlans, setLoadingPlans] = useState(true)
+  const [activePlan, setActivePlan] = useState<string | null>(null);
+  const [plans, setPlans] = useState<string[]>([]);
+  const [loadingPlans, setLoadingPlans] = useState(true);
 
   // Plan-specific states
-  const [metadataResult, setMetadataResult] = useState<MetadataResult | null>(null)
-  const [imageError, setImageError] = useState(false)
-  const [pipelineStatus, setPipelineStatus] = useState<PipelineStatus | null>(null)
-  const [showOverlay, setShowOverlay] = useState(false)
+  const [metadataResult, setMetadataResult] = useState<MetadataResult | null>(
+    null,
+  );
+  const [imageError, setImageError] = useState(false);
+  const [pipelineStatus, setPipelineStatus] = useState<PipelineStatus | null>(
+    null,
+  );
+  const [showOverlay, setShowOverlay] = useState(false);
 
   // Candidates states
-  const [candidates, setCandidates] = useState<Candidate[]>([])
-  const [loadingCandidates, setLoadingCandidates] = useState(true)
-  const [candidateSource, setCandidateSource] = useState<CandidateSource>('raw')
-  const [candidateReloadKey, setCandidateReloadKey] = useState(0)
-  const [isSaving, setIsSaving] = useState(false)
-  const [saveSuccess, setSaveSuccess] = useState(false)
-  const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null)
-  const [cropError, setCropError] = useState(false)
-  const [isExporting, setIsExporting] = useState<{csv: boolean, json: boolean}>({csv: false, json: false})
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [loadingCandidates, setLoadingCandidates] = useState(true);
+  const [candidateSource, setCandidateSource] =
+    useState<CandidateSource>("raw");
+  const [candidateReloadKey, setCandidateReloadKey] = useState(0);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(
+    null,
+  );
+  const [cropError, setCropError] = useState(false);
+  const [isExporting, setIsExporting] = useState<{
+    csv: boolean;
+    json: boolean;
+  }>({ csv: false, json: false });
 
   // Uploader states
-  const [uploadFile, setUploadFile] = useState<File | null>(null)
-  const [isDragging, setIsDragging] = useState(false)
-  const [uploadProgress, setUploadProgress] = useState<string | null>(null) // null, 'uploading', 'processing', 'completed', 'failed', 'duplicate'
-  const [uploadError, setUploadError] = useState<string | null>(null)
-  const [duplicatePlanId, setDuplicatePlanId] = useState<string | null>(null)
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<string | null>(null); // null, 'uploading', 'processing', 'completed', 'failed', 'duplicate'
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [duplicatePlanId, setDuplicatePlanId] = useState<string | null>(null);
 
   const handlePlanSelection = (planId: string | null) => {
-    setImageError(false)
-    setMetadataResult(null)
-    setCandidates([])
-    setCandidateSource('raw')
-    setPipelineStatus(null)
-    setShowOverlay(false)
-    setLoadingCandidates(true)
-    setSaveSuccess(false)
-    setSelectedCandidateId(null)
-    setCropError(false)
-    setUploadFile(null)
-    setUploadProgress(null)
-    setUploadError(null)
-    setActivePlan(planId)
-  }
+    setImageError(false);
+    setMetadataResult(null);
+    setCandidates([]);
+    setCandidateSource("raw");
+    setPipelineStatus(null);
+    setShowOverlay(false);
+    setLoadingCandidates(true);
+    setSaveSuccess(false);
+    setSelectedCandidateId(null);
+    setCropError(false);
+    setUploadFile(null);
+    setUploadProgress(null);
+    setUploadError(null);
+    setActivePlan(planId);
+  };
 
   const handleUpload = async () => {
-    if (!uploadFile) return
-    setUploadProgress('uploading')
-    setUploadError(null)
-    setDuplicatePlanId(null)
+    if (!uploadFile) return;
+    setUploadProgress("uploading");
+    setUploadError(null);
+    setDuplicatePlanId(null);
 
-    const formData = new FormData()
-    formData.append('file', uploadFile)
+    const formData = new FormData();
+    formData.append("file", uploadFile);
 
     try {
-      const response = await fetch('/api/import/pdf', {
-        method: 'POST',
+      const response = await fetch("/api/import/pdf", {
+        method: "POST",
         body: formData,
-      })
+      });
       if (!response.ok) {
-        const errText = await response.text()
-        throw new Error(errText || 'Upload failed')
+        const errText = await response.text();
+        throw new Error(errText || "Upload failed");
       }
-      const result = await response.json()
+      const result = await response.json();
 
-      if (result.status === 'duplicate') {
-        setDuplicatePlanId(result.plan_id)
-        setUploadProgress('duplicate')
+      if (result.status === "duplicate") {
+        setDuplicatePlanId(result.plan_id);
+        setUploadProgress("duplicate");
       } else {
-        const planId = result.plan_id
-        setUploadProgress('processing')
-        pollStatus(planId)
+        const planId = result.plan_id;
+        setUploadProgress("processing");
+        pollStatus(planId);
       }
     } catch (err) {
-      console.error(err)
-      const error = err as Error
-      setUploadError(error.message || 'An error occurred during upload.')
-      setUploadProgress('failed')
+      console.error(err);
+      const error = err as Error;
+      setUploadError(error.message || "An error occurred during upload.");
+      setUploadProgress("failed");
     }
-  }
+  };
 
   const pollStatus = (planId: string) => {
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`/api/status/${planId}`)
-        if (!res.ok) throw new Error('Status check failed')
-        const data = await res.json()
+        const res = await fetch(`/api/status/${planId}`);
+        if (!res.ok) throw new Error("Status check failed");
+        const data = await res.json();
 
-        if (data.status === 'completed') {
-          clearInterval(interval)
-          setUploadProgress('completed')
+        if (data.status === "completed") {
+          clearInterval(interval);
+          setUploadProgress("completed");
 
           // Refresh plans list
-          const plansRes = await fetch('/api/plans')
-          const plansData = await plansRes.json()
+          const plansRes = await fetch("/api/plans");
+          const plansData = await plansRes.json();
           if (plansData.plans) {
-            setPlans(plansData.plans)
+            setPlans(plansData.plans);
           }
 
           // Select newly processed plan
           setTimeout(() => {
-            setActivePlan(planId)
-            setUploadFile(null)
-            setUploadProgress(null)
-          }, 1500)
-        } else if (data.status === 'failed') {
-          clearInterval(interval)
-          setUploadProgress('failed')
-          setUploadError('Pipeline execution failed on backend.')
+            setActivePlan(planId);
+            setUploadFile(null);
+            setUploadProgress(null);
+          }, 1500);
+        } else if (data.status === "failed") {
+          clearInterval(interval);
+          setUploadProgress("failed");
+          setUploadError("Pipeline execution failed on backend.");
         }
       } catch (err) {
-        console.error(err)
+        console.error(err);
       }
-    }, 2500)
-  }
-
+    }, 2500);
+  };
 
   // Fetch available plans on mount
   useEffect(() => {
-    fetch('/api/plans')
-      .then(res => res.json())
-      .then(data => {
+    fetch("/api/plans")
+      .then((res) => res.json())
+      .then((data) => {
         if (data.plans && Array.isArray(data.plans)) {
-          setPlans(data.plans)
+          setPlans(data.plans);
           if (data.plans.length > 0) {
-            setActivePlan(data.plans[0])
+            setActivePlan(data.plans[0]);
           }
         }
       })
-      .catch(err => console.error("Failed to load plans:", err))
-      .finally(() => setLoadingPlans(false))
-  }, [])
+      .catch((err) => console.error("Failed to load plans:", err))
+      .finally(() => setLoadingPlans(false));
+  }, []);
 
   // Fetch metadata, candidates and status when activePlan changes
   useEffect(() => {
-    if (!activePlan) return
+    if (!activePlan) return;
 
     // 1. Fetch metadata
     fetch(`/api/metadata/${activePlan}`)
-      .then(res => {
-        if (!res.ok) throw new Error(`Metadata request failed (${res.status})`)
-        return res.json()
+      .then((res) => {
+        if (!res.ok) throw new Error(`Metadata request failed (${res.status})`);
+        return res.json();
       })
-      .then(data => setMetadataResult(parseMetadataResponse(data)))
-      .catch(err => {
-        console.error("Failed to load metadata:", err)
-        setMetadataResult({ kind: 'error', message: err.message })
-      })
+      .then((data) => setMetadataResult(parseMetadataResponse(data)))
+      .catch((err) => {
+        console.error("Failed to load metadata:", err);
+        setMetadataResult({ kind: "error", message: err.message });
+      });
 
     // 2. Fetch pipeline status
     fetch(`/api/status/${activePlan}`)
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
-        if (data) setPipelineStatus(data)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data) setPipelineStatus(data);
       })
-      .catch(err => console.error("Failed to load pipeline status:", err))
+      .catch((err) => console.error("Failed to load pipeline status:", err));
 
     // 3. Fetch candidates (Try reviews first, fallback to raw candidates)
     fetch(`/api/reviews/${activePlan}`)
-      .then(res => {
-        if (res.ok) return res.json()
-        throw new Error('No draft found')
+      .then((res) => {
+        if (res.ok) return res.json();
+        throw new Error("No draft found");
       })
-      .then(data => {
+      .then((data) => {
         if (data && data.candidates && data.candidates.length > 0) {
-          setCandidates(data.candidates)
-          setCandidateSource(candidateSourceFromApi(data.source))
-          setLoadingCandidates(false)
+          setCandidates(data.candidates);
+          setCandidateSource(candidateSourceFromApi(data.source));
+          setLoadingCandidates(false);
         } else {
-          throw new Error('Empty draft')
+          throw new Error("Empty draft");
         }
       })
       .catch(() => {
         // Fallback to raw candidates
         fetch(`/api/candidates/${activePlan}`)
-          .then(res => res.ok ? res.json() : { candidates: [] })
-          .then(data => {
-            setCandidates(data.candidates || [])
-            setCandidateSource(candidateSourceFromApi(data.source))
+          .then((res) => (res.ok ? res.json() : { candidates: [] }))
+          .then((data) => {
+            setCandidates(data.candidates || []);
+            setCandidateSource(candidateSourceFromApi(data.source));
           })
-          .catch(err => console.error("Failed to load candidates:", err))
-          .finally(() => setLoadingCandidates(false))
-      })
-
-  }, [activePlan, candidateReloadKey])
+          .catch((err) => console.error("Failed to load candidates:", err))
+          .finally(() => setLoadingCandidates(false));
+      });
+  }, [activePlan, candidateReloadKey]);
 
   const handleSave = async () => {
-    if (!activePlan || candidates.length === 0 || !canSaveCandidates(candidateSource)) return
-    setIsSaving(true)
-    setSaveSuccess(false)
+    if (
+      !activePlan ||
+      candidates.length === 0 ||
+      !canSaveCandidates(candidateSource)
+    )
+      return;
+    setIsSaving(true);
+    setSaveSuccess(false);
     try {
       const response = await fetch(`/api/reviews/${activePlan}`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(candidates),
-      })
+      });
       if (response.ok) {
-        setSaveSuccess(true)
-        setTimeout(() => setSaveSuccess(false), 3000)
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 3000);
         // Refresh status to update UI flags
         fetch(`/api/status/${activePlan}`)
-          .then(res => res.ok ? res.json() : null)
-          .then(data => { if (data) setPipelineStatus(data) })
+          .then((res) => (res.ok ? res.json() : null))
+          .then((data) => {
+            if (data) setPipelineStatus(data);
+          });
       } else {
-        console.error("Save failed:", await response.text())
+        console.error("Save failed:", await response.text());
       }
     } catch (error) {
-      console.error("Save error:", error)
+      console.error("Save error:", error);
     } finally {
-      setIsSaving(false)
+      setIsSaving(false);
     }
-  }
+  };
 
   const loadSampleCandidates = async () => {
-    setLoadingCandidates(true)
+    setLoadingCandidates(true);
     try {
-      const response = await fetch('/api/candidates/sample')
-      if (!response.ok) throw new Error(`Sample candidate request failed (${response.status})`)
-      const data = await response.json()
-      setCandidates(data.candidates || [])
-      setCandidateSource('sample')
-      setSelectedCandidateId(null)
-      setCropError(false)
+      const response = await fetch("/api/candidates/sample");
+      if (!response.ok)
+        throw new Error(`Sample candidate request failed (${response.status})`);
+      const data = await response.json();
+      setCandidates(data.candidates || []);
+      setCandidateSource("sample");
+      setSelectedCandidateId(null);
+      setCropError(false);
     } catch (error) {
-      console.error('Failed to load sample candidates:', error)
+      console.error("Failed to load sample candidates:", error);
     } finally {
-      setLoadingCandidates(false)
+      setLoadingCandidates(false);
     }
-  }
+  };
 
   const exitSampleMode = () => {
-    setCandidateSource('raw')
-    setLoadingCandidates(true)
-    setCandidateReloadKey(key => key + 1)
-  }
+    setCandidateSource("raw");
+    setLoadingCandidates(true);
+    setCandidateReloadKey((key) => key + 1);
+  };
 
-  const handleExport = async (type: 'csv' | 'json') => {
-    if (!activePlan || candidates.length === 0) return
-    setIsExporting(prev => ({ ...prev, [type]: true }))
+  const handleExport = async (type: "csv" | "json") => {
+    if (!activePlan || candidates.length === 0) return;
+    setIsExporting((prev) => ({ ...prev, [type]: true }));
     try {
       const response = await fetch(`/api/exports/${type}/${activePlan}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(candidates),
-      })
-      if (!response.ok) throw new Error("Export failed")
+      });
+      if (!response.ok) throw new Error("Export failed");
 
-      const blob = await response.blob()
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `${activePlan}_verified_openings.${type}`
-      document.body.appendChild(a)
-      a.click()
-      window.URL.revokeObjectURL(url)
-      document.body.removeChild(a)
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${activePlan}_verified_openings.${type}`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
 
       // Refresh status to update UI flags
       fetch(`/api/status/${activePlan}`)
-        .then(res => res.ok ? res.json() : null)
-        .then(data => { if (data) setPipelineStatus(data) })
-
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data) setPipelineStatus(data);
+        });
     } catch (error) {
-      console.error(`Export ${type} error:`, error)
+      console.error(`Export ${type} error:`, error);
     } finally {
-      setIsExporting(prev => ({ ...prev, [type]: false }))
+      setIsExporting((prev) => ({ ...prev, [type]: false }));
     }
-  }
+  };
 
-  const handleCellChange = (id: string, field: EditableCandidateField, value: EditableCandidateValue) => {
-    setCandidates(prev =>
-      prev.map(c => c.candidate_id === id ? { ...c, [field]: value } : c)
-    )
-  }
+  const handleCellChange = (
+    id: string,
+    field: EditableCandidateField,
+    value: EditableCandidateValue,
+  ) => {
+    setCandidates((prev) =>
+      prev.map((c) => (c.candidate_id === id ? { ...c, [field]: value } : c)),
+    );
+  };
 
   const handleCandidateSelection = (candidateId: string) => {
-    setSelectedCandidateId(candidateId)
-    setCropError(false)
-  }
+    setSelectedCandidateId(candidateId);
+    setCropError(false);
+  };
 
-  const selectedCandidate = candidates.find(c => c.candidate_id === selectedCandidateId)
-  const metadata = metadataResult?.kind === 'available' ? metadataResult.metadata : null
+  const selectedCandidate = candidates.find(
+    (c) => c.candidate_id === selectedCandidateId,
+  );
+  const metadata =
+    metadataResult?.kind === "available" ? metadataResult.metadata : null;
 
   // Helper to extract filename from crop_path
   const getCropFilename = (path: string | null) => {
     if (!path) return null;
-    const parts = path.split('/');
+    const parts = path.split("/");
     return parts[parts.length - 1];
-  }
+  };
 
   // Helper for text inputs
-  const TextInput = ({ candidate, field, type = "text" }: { candidate: Candidate, field: EditableCandidateField, type?: string }) => (
+  const TextInput = ({
+    candidate,
+    field,
+    type = "text",
+  }: {
+    candidate: Candidate;
+    field: EditableCandidateField;
+    type?: string;
+  }) => (
     <input
       type={type}
       value={candidate[field] === null ? "" : candidate[field]}
-      onChange={(e) => handleCellChange(candidate.candidate_id, field, type === "number" ? (e.target.value ? Number(e.target.value) : null) : e.target.value)}
+      onChange={(e) =>
+        handleCellChange(
+          candidate.candidate_id,
+          field,
+          type === "number"
+            ? e.target.value
+              ? Number(e.target.value)
+              : null
+            : e.target.value,
+        )
+      }
       className="w-full bg-transparent border-b border-transparent hover:border-border focus:border-primary focus:outline-none focus:ring-0 px-1 py-1 text-sm transition-colors"
       placeholder="-"
       onClick={(e) => e.stopPropagation()}
     />
-  )
+  );
 
   const renderUploadContent = () => {
     switch (uploadProgress) {
-      case 'uploading':
-      case 'processing':
+      case "uploading":
+      case "processing":
         return (
           <div className="flex flex-col items-center justify-center p-8">
             <Loader2 className="w-16 h-16 animate-spin text-[#FE0000] mb-6" />
             <h3 className="text-xl font-bold mb-2 text-foreground">
-              {uploadProgress === 'uploading' ? 'Uploading PDF File...' : 'Processing Plan Pipeline...'}
+              {uploadProgress === "uploading"
+                ? "Uploading PDF File..."
+                : "Processing Plan Pipeline..."}
             </h3>
             <p className="text-sm text-muted-foreground max-w-sm">
-              We are rendering the PDF, running Tesseract OCR, and extracting candidate coordinate geometry. This may take up to a minute.
+              We are rendering the PDF, running Tesseract OCR, and extracting
+              candidate coordinate geometry. This may take up to a minute.
             </p>
           </div>
         );
-      case 'completed':
+      case "completed":
         return (
           <div className="flex flex-col items-center justify-center p-8">
             <CheckCircle2 className="w-16 h-16 text-green-500 mb-4 animate-pulse" />
             <h3 className="text-xl font-bold mb-2">Processing Complete!</h3>
-            <p className="text-sm text-muted-foreground">Opening plan dashboard...</p>
+            <p className="text-sm text-muted-foreground">
+              Opening plan dashboard...
+            </p>
           </div>
         );
-      case 'duplicate':
+      case "duplicate":
         return (
           <div className="flex flex-col items-center justify-center p-8 space-y-6">
             <AlertCircle className="w-16 h-16 text-amber-500 animate-bounce" />
             <div>
-              <h3 className="text-xl font-bold mb-2 text-foreground">Duplicate Plan Detected</h3>
+              <h3 className="text-xl font-bold mb-2 text-foreground">
+                Duplicate Plan Detected
+              </h3>
               <p className="text-sm text-muted-foreground">
-                This document has already been processed as plan ID: <strong>{duplicatePlanId}</strong>.
+                This document has already been processed as plan ID:{" "}
+                <strong>{duplicatePlanId}</strong>.
               </p>
             </div>
             <div className="flex gap-4 justify-center">
@@ -399,14 +476,16 @@ function App() {
             </div>
           </div>
         );
-      case 'failed':
+      case "failed":
         return (
           <div className="flex flex-col items-center justify-center p-8 space-y-6">
             <AlertCircle className="w-16 h-16 text-[#FE0000]" />
             <div>
-              <h3 className="text-xl font-bold text-[#FE0000] mb-2">Processing Failed</h3>
+              <h3 className="text-xl font-bold text-[#FE0000] mb-2">
+                Processing Failed
+              </h3>
               <p className="text-sm text-muted-foreground max-w-sm">
-                {uploadError || 'An error occurred during pipeline execution.'}
+                {uploadError || "An error occurred during pipeline execution."}
               </p>
             </div>
             <button
@@ -423,28 +502,37 @@ function App() {
       default:
         return (
           <div
-            onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDragging(true);
+            }}
             onDragLeave={() => setIsDragging(false)}
             onDrop={(e) => {
               e.preventDefault();
               setIsDragging(false);
               if (e.dataTransfer.files && e.dataTransfer.files[0]) {
                 const file = e.dataTransfer.files[0];
-                if (file.name.toLowerCase().endsWith('.pdf')) {
+                if (file.name.toLowerCase().endsWith(".pdf")) {
                   setUploadFile(file);
                   setUploadError(null);
                 } else {
-                  setUploadError('Only PDF files are supported.');
+                  setUploadError("Only PDF files are supported.");
                 }
               }
             }}
             className={`flex flex-col items-center justify-center cursor-pointer p-8 rounded-xl transition-colors ${
-              isDragging ? 'bg-primary/5 border-primary' : 'hover:bg-muted/50'
+              isDragging ? "bg-primary/5 border-primary" : "hover:bg-muted/50"
             }`}
           >
-            <Download className={`w-16 h-16 mb-4 ${isDragging ? 'text-primary animate-bounce' : 'text-muted-foreground'}`} />
-            <h3 className="text-lg font-bold mb-2">Drag & Drop your Plan PDF here</h3>
-            <p className="text-sm text-muted-foreground mb-6">or click to browse your files (PDF format only, max 50MB)</p>
+            <Download
+              className={`w-16 h-16 mb-4 ${isDragging ? "text-primary animate-bounce" : "text-muted-foreground"}`}
+            />
+            <h3 className="text-lg font-bold mb-2">
+              Drag & Drop your Plan PDF here
+            </h3>
+            <p className="text-sm text-muted-foreground mb-6">
+              or click to browse your files (PDF format only, max 50MB)
+            </p>
 
             <input
               type="file"
@@ -480,12 +568,16 @@ function App() {
             <div className="w-8 h-8 bg-white rounded-md flex items-center justify-center shadow-sm">
               <LayoutDashboard className="w-5 h-5 text-[#FE0000]" />
             </div>
-            <h1 className="text-xl font-black tracking-tighter text-white">PLAN<span className="opacity-80 font-medium">FUGE</span></h1>
+            <h1 className="text-xl font-black tracking-tighter text-white">
+              PLAN<span className="opacity-80 font-medium">FUGE</span>
+            </h1>
           </div>
         </div>
 
         <div className="p-4 flex-1 overflow-y-auto">
-          <h2 className="text-xs uppercase font-bold text-white/70 tracking-wider mb-4">Plan Selection</h2>
+          <h2 className="text-xs uppercase font-bold text-white/70 tracking-wider mb-4">
+            Plan Selection
+          </h2>
 
           <button
             onClick={() => handlePlanSelection(null)}
@@ -508,7 +600,8 @@ function App() {
             <div className="p-3 bg-white/10 border border-white/20 rounded-md flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-white shrink-0 mt-0.5" />
               <p className="text-sm text-white/90">
-                No plan files found. Please click <strong>Upload New PDF</strong> above to import a plan.
+                No plan files found. Please click{" "}
+                <strong>Upload New PDF</strong> above to import a plan.
               </p>
             </div>
           ) : (
@@ -523,7 +616,9 @@ function App() {
                       : "text-white/80 hover:bg-white/10 hover:text-white"
                   }`}
                 >
-                  <LayoutDashboard className={`w-4 h-4 ${activePlan === plan_id ? "text-[#FE0000]" : "text-white/60"}`} />
+                  <LayoutDashboard
+                    className={`w-4 h-4 ${activePlan === plan_id ? "text-[#FE0000]" : "text-white/60"}`}
+                  />
                   <span className="truncate">{plan_id}</span>
                 </button>
               ))}
@@ -549,13 +644,19 @@ function App() {
               </span>
             )}
             {metadata?.scale_text_visible && (
-              <span className="text-xs text-muted-foreground">Scale: {metadata.scale_text_visible}</span>
+              <span className="text-xs text-muted-foreground">
+                Scale: {metadata.scale_text_visible}
+              </span>
             )}
             {metadata?.source_type && (
-              <span className="text-xs text-muted-foreground">Source: {metadata.source_type}</span>
+              <span className="text-xs text-muted-foreground">
+                Source: {metadata.source_type}
+              </span>
             )}
-            {metadataResult && metadataResult.kind !== 'available' && (
-              <span className={`inline-flex items-center gap-1 text-xs ${metadataResult.kind === 'error' ? 'text-red-600' : 'text-amber-600'}`}>
+            {metadataResult && metadataResult.kind !== "available" && (
+              <span
+                className={`inline-flex items-center gap-1 text-xs ${metadataResult.kind === "error" ? "text-red-600" : "text-amber-600"}`}
+              >
                 <AlertCircle className="w-3 h-3" />
                 {metadataResult.message}
               </span>
@@ -576,10 +677,15 @@ function App() {
                     <div className="flex items-center gap-3 text-left">
                       <Layers className="w-8 h-8 text-[#FE0000] shrink-0 animate-pulse" />
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold truncate max-w-[280px]" title={uploadFile.name}>
+                        <p
+                          className="text-sm font-semibold truncate max-w-[280px]"
+                          title={uploadFile.name}
+                        >
                           {uploadFile.name}
                         </p>
-                        <p className="text-xs text-muted-foreground">{(uploadFile.size / (1024 * 1024)).toFixed(2)} MB</p>
+                        <p className="text-xs text-muted-foreground">
+                          {(uploadFile.size / (1024 * 1024)).toFixed(2)} MB
+                        </p>
                       </div>
                     </div>
                     <div className="flex gap-3">
@@ -609,13 +715,10 @@ function App() {
             </div>
           ) : (
             <div className="h-full flex flex-col lg:flex-row divide-y lg:divide-y-0 lg:divide-x divide-border">
-
               {/* Left Column: Plan Image Viewer & Candidate Table */}
               <div className="flex-1 flex flex-col min-h-0 bg-muted/20 relative animate-in fade-in duration-500">
-
                 {/* Top Half: Plan Image Viewer */}
                 <div className="flex-[3] relative border-b border-border overflow-auto flex items-start justify-center p-6 bg-muted/10">
-
                   {/* Floating Toggle Switch */}
                   {hasOverlay && (
                     <div className="absolute top-4 right-4 z-20 bg-background/90 backdrop-blur-md p-1.5 rounded-full border border-border shadow-md flex items-center space-x-1">
@@ -623,8 +726,8 @@ function App() {
                         onClick={() => setShowOverlay(false)}
                         className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
                           !showOverlay
-                            ? 'bg-primary text-primary-foreground shadow-sm'
-                            : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                            ? "bg-primary text-primary-foreground shadow-sm"
+                            : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                         }`}
                       >
                         Original
@@ -633,8 +736,8 @@ function App() {
                         onClick={() => setShowOverlay(true)}
                         className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors flex items-center gap-1.5 ${
                           showOverlay
-                            ? 'bg-primary text-primary-foreground shadow-sm'
-                            : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                            ? "bg-primary text-primary-foreground shadow-sm"
+                            : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                         }`}
                       >
                         <Layers className="w-3 h-3" />
@@ -648,14 +751,19 @@ function App() {
                       <AlertCircle className="w-10 h-10 mx-auto mb-3 opacity-80" />
                       <h3 className="font-semibold mb-1">Image Missing</h3>
                       <p className="text-sm opacity-80">
-                        Could not load {showOverlay ? 'overlay' : 'original'} image for {activePlan}
+                        Could not load {showOverlay ? "overlay" : "original"}{" "}
+                        image for {activePlan}
                       </p>
                     </div>
                   ) : (
                     <div className="relative rounded-lg overflow-hidden border border-border shadow-md bg-white max-w-full">
                       <img
-                        src={showOverlay ? `/api/images/overlays/${activePlan}` : `/api/images/pages/${activePlan}`}
-                        alt={`Plan ${activePlan} ${showOverlay ? 'Overlay' : ''}`}
+                        src={
+                          showOverlay
+                            ? `/api/images/overlays/${activePlan}`
+                            : `/api/images/pages/${activePlan}`
+                        }
+                        alt={`Plan ${activePlan} ${showOverlay ? "Overlay" : ""}`}
                         className="max-w-full h-auto object-contain block"
                         onError={() => setImageError(true)}
                       />
@@ -667,18 +775,34 @@ function App() {
                 <div className="flex-[2] bg-background flex flex-col min-h-0">
                   <div className="px-4 py-3 border-b border-border flex items-center justify-between bg-card">
                     <div className="flex items-center gap-3">
-                      <h3 className="font-semibold text-sm">Detected Candidates ({candidates.length})</h3>
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${candidateSourceBadgeClass(candidateSource)}`}>
+                      <h3 className="font-semibold text-sm">
+                        Detected Candidates ({candidates.length})
+                      </h3>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-semibold ${candidateSourceBadgeClass(candidateSource)}`}
+                      >
                         {candidateSourceLabel(candidateSource)}
                       </span>
                     </div>
                     <div className="flex items-center gap-3">
-                      {candidateSource === 'sample' ? (
-                        <button onClick={exitSampleMode} className="text-xs font-medium text-primary hover:underline">Return to real candidates</button>
+                      {candidateSource === "sample" ? (
+                        <button
+                          onClick={exitSampleMode}
+                          className="text-xs font-medium text-primary hover:underline"
+                        >
+                          Return to real candidates
+                        </button>
                       ) : (
-                        <button onClick={loadSampleCandidates} className="text-xs font-medium text-primary hover:underline">Use sample candidates</button>
+                        <button
+                          onClick={loadSampleCandidates}
+                          className="text-xs font-medium text-primary hover:underline"
+                        >
+                          Use sample candidates
+                        </button>
                       )}
-                      <p className="text-xs text-muted-foreground">Click a row to view crop preview.</p>
+                      <p className="text-xs text-muted-foreground">
+                        Click a row to view crop preview.
+                      </p>
                     </div>
                   </div>
 
@@ -697,55 +821,128 @@ function App() {
                         <table className="min-w-full divide-y divide-border border-b border-border">
                           <thead className="bg-muted/50 sticky top-0 z-10 backdrop-blur-sm">
                             <tr>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap">ID</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap">Status</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap">Raw Text</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap">Label Type</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap">W (mm)</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap">H (mm)</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap">Ø (mm)</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap">RA</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap">OK</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap">Reference</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap">Comment</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap">
+                                ID
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap">
+                                Status
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap">
+                                Raw Text
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap">
+                                Label Type
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap">
+                                W (mm)
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap">
+                                H (mm)
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap">
+                                Ø (mm)
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap">
+                                RA
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap">
+                                OK
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap">
+                                Reference
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap">
+                                Comment
+                              </th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-border bg-card">
                             {candidates.map((c) => (
                               <tr
                                 key={c.candidate_id}
-                                onClick={() => handleCandidateSelection(c.candidate_id)}
-                                className={`transition-colors cursor-pointer ${selectedCandidateId === c.candidate_id ? 'bg-primary/10 hover:bg-primary/20' : 'hover:bg-muted/30'}`}
+                                onClick={() =>
+                                  handleCandidateSelection(c.candidate_id)
+                                }
+                                className={`transition-colors cursor-pointer ${selectedCandidateId === c.candidate_id ? "bg-primary/10 hover:bg-primary/20" : "hover:bg-muted/30"}`}
                               >
                                 <td className="px-4 py-2 whitespace-nowrap text-xs font-medium text-muted-foreground border-r border-border/50 bg-muted/5">
                                   {c.candidate_id}
                                 </td>
-                                <td className="px-2 py-2 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                                <td
+                                  className="px-2 py-2 whitespace-nowrap"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
                                   <select
-                                    value={c.status || 'needs_review'}
-                                    onChange={(e) => handleCellChange(c.candidate_id, 'status', e.target.value)}
+                                    value={c.status || "needs_review"}
+                                    onChange={(e) =>
+                                      handleCellChange(
+                                        c.candidate_id,
+                                        "status",
+                                        e.target.value,
+                                      )
+                                    }
                                     className={`text-xs px-2 py-1 rounded border-none font-medium focus:ring-1 focus:ring-primary ${
-                                      c.status === 'verified' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
-                                      c.status === 'rejected' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' :
-                                      c.status === 'duplicate_candidate' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400' :
-                                      'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
+                                      c.status === "verified"
+                                        ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
+                                        : c.status === "rejected"
+                                          ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
+                                          : c.status === "duplicate_candidate"
+                                            ? "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400"
+                                            : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
                                     }`}
                                   >
-                                    <option value="needs_review">Needs Review</option>
+                                    <option value="needs_review">
+                                      Needs Review
+                                    </option>
                                     <option value="verified">Verified</option>
                                     <option value="rejected">Rejected</option>
-                                    <option value="duplicate_candidate">Duplicate</option>
+                                    <option value="duplicate_candidate">
+                                      Duplicate
+                                    </option>
                                   </select>
                                 </td>
-                                <td className="px-2 py-2 min-w-[120px]"><TextInput candidate={c} field="raw_text" /></td>
-                                <td className="px-2 py-2 min-w-[100px]"><TextInput candidate={c} field="label_type" /></td>
-                                <td className="px-2 py-2 min-w-[80px]"><TextInput candidate={c} field="width_mm" type="number" /></td>
-                                <td className="px-2 py-2 min-w-[80px]"><TextInput candidate={c} field="height_mm" type="number" /></td>
-                                <td className="px-2 py-2 min-w-[80px]"><TextInput candidate={c} field="diameter_mm" type="number" /></td>
-                                <td className="px-2 py-2 min-w-[80px]"><TextInput candidate={c} field="ra_value" /></td>
-                                <td className="px-2 py-2 min-w-[80px]"><TextInput candidate={c} field="ok_value" /></td>
-                                <td className="px-2 py-2 min-w-[120px]"><TextInput candidate={c} field="reference" /></td>
-                                <td className="px-2 py-2 min-w-[150px]"><TextInput candidate={c} field="review_comment" /></td>
+                                <td className="px-2 py-2 min-w-[120px]">
+                                  <TextInput candidate={c} field="raw_text" />
+                                </td>
+                                <td className="px-2 py-2 min-w-[100px]">
+                                  <TextInput candidate={c} field="label_type" />
+                                </td>
+                                <td className="px-2 py-2 min-w-[80px]">
+                                  <TextInput
+                                    candidate={c}
+                                    field="width_mm"
+                                    type="number"
+                                  />
+                                </td>
+                                <td className="px-2 py-2 min-w-[80px]">
+                                  <TextInput
+                                    candidate={c}
+                                    field="height_mm"
+                                    type="number"
+                                  />
+                                </td>
+                                <td className="px-2 py-2 min-w-[80px]">
+                                  <TextInput
+                                    candidate={c}
+                                    field="diameter_mm"
+                                    type="number"
+                                  />
+                                </td>
+                                <td className="px-2 py-2 min-w-[80px]">
+                                  <TextInput candidate={c} field="ra_value" />
+                                </td>
+                                <td className="px-2 py-2 min-w-[80px]">
+                                  <TextInput candidate={c} field="ok_value" />
+                                </td>
+                                <td className="px-2 py-2 min-w-[120px]">
+                                  <TextInput candidate={c} field="reference" />
+                                </td>
+                                <td className="px-2 py-2 min-w-[150px]">
+                                  <TextInput
+                                    candidate={c}
+                                    field="review_comment"
+                                  />
+                                </td>
                               </tr>
                             ))}
                           </tbody>
@@ -754,12 +951,10 @@ function App() {
                     )}
                   </div>
                 </div>
-
               </div>
 
               {/* Right Column: Status & Actions (Fixed width on desktop) */}
               <div className="w-full lg:w-96 shrink-0 overflow-y-auto p-6 bg-background space-y-6">
-
                 {/* Crop Preview Panel */}
                 <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
                   <h4 className="text-base font-semibold mb-4 flex items-center gap-2">
@@ -768,7 +963,9 @@ function App() {
                   </h4>
                   {!selectedCandidate ? (
                     <div className="h-32 border border-dashed border-border rounded-lg flex items-center justify-center bg-muted/30">
-                      <p className="text-sm text-muted-foreground">Select a candidate from the table.</p>
+                      <p className="text-sm text-muted-foreground">
+                        Select a candidate from the table.
+                      </p>
                     </div>
                   ) : (
                     <div className="space-y-4">
@@ -776,12 +973,16 @@ function App() {
                       {!selectedCandidate.crop_path ? (
                         <div className="h-32 border border-dashed border-border rounded-lg flex flex-col items-center justify-center bg-muted/30">
                           <ImageIcon className="w-6 h-6 text-muted-foreground/50 mb-2" />
-                          <p className="text-sm text-muted-foreground">No crop image available</p>
+                          <p className="text-sm text-muted-foreground">
+                            No crop image available
+                          </p>
                         </div>
                       ) : cropError ? (
                         <div className="h-32 border border-dashed border-red-500/30 rounded-lg flex flex-col items-center justify-center bg-red-500/5">
                           <AlertCircle className="w-6 h-6 text-red-400 mb-2" />
-                          <p className="text-xs text-red-500 text-center px-4">Failed to load crop image</p>
+                          <p className="text-xs text-red-500 text-center px-4">
+                            Failed to load crop image
+                          </p>
                         </div>
                       ) : (
                         <div className="border border-border rounded-lg overflow-hidden bg-white flex items-center justify-center min-h-[128px] p-2">
@@ -797,33 +998,53 @@ function App() {
                       {/* Parsed Data Details */}
                       <div className="bg-muted/30 rounded-lg p-3 space-y-2 border border-border">
                         <div className="flex justify-between items-center border-b border-border/50 pb-2 mb-2">
-                          <span className="text-xs font-semibold text-muted-foreground">ID</span>
-                          <span className="text-xs font-mono text-foreground truncate max-w-[150px]" title={selectedCandidate.candidate_id}>
+                          <span className="text-xs font-semibold text-muted-foreground">
+                            ID
+                          </span>
+                          <span
+                            className="text-xs font-mono text-foreground truncate max-w-[150px]"
+                            title={selectedCandidate.candidate_id}
+                          >
                             {selectedCandidate.candidate_id}
                           </span>
                         </div>
                         <div className="grid grid-cols-2 gap-2 text-xs">
                           <div>
-                            <span className="block text-muted-foreground mb-0.5">Label Type</span>
-                            <span className="font-medium">{selectedCandidate.label_type || '-'}</span>
-                          </div>
-                          <div>
-                            <span className="block text-muted-foreground mb-0.5">Raw Text</span>
-                            <span className="font-medium">{selectedCandidate.raw_text || '-'}</span>
-                          </div>
-                          <div>
-                            <span className="block text-muted-foreground mb-0.5">Dimensions (mm)</span>
+                            <span className="block text-muted-foreground mb-0.5">
+                              Label Type
+                            </span>
                             <span className="font-medium">
-                              {selectedCandidate.width_mm && selectedCandidate.height_mm
-                                ? `${selectedCandidate.width_mm}x${selectedCandidate.height_mm}`
-                                : selectedCandidate.diameter_mm
-                                ? `Ø${selectedCandidate.diameter_mm}`
-                                : '-'}
+                              {selectedCandidate.label_type || "-"}
                             </span>
                           </div>
                           <div>
-                            <span className="block text-muted-foreground mb-0.5">Reference</span>
-                            <span className="font-medium">{selectedCandidate.reference || '-'}</span>
+                            <span className="block text-muted-foreground mb-0.5">
+                              Raw Text
+                            </span>
+                            <span className="font-medium">
+                              {selectedCandidate.raw_text || "-"}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="block text-muted-foreground mb-0.5">
+                              Dimensions (mm)
+                            </span>
+                            <span className="font-medium">
+                              {selectedCandidate.width_mm &&
+                              selectedCandidate.height_mm
+                                ? `${selectedCandidate.width_mm}x${selectedCandidate.height_mm}`
+                                : selectedCandidate.diameter_mm
+                                  ? `Ø${selectedCandidate.diameter_mm}`
+                                  : "-"}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="block text-muted-foreground mb-0.5">
+                              Reference
+                            </span>
+                            <span className="font-medium">
+                              {selectedCandidate.reference || "-"}
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -840,49 +1061,85 @@ function App() {
                   <ul className="space-y-3">
                     <li className="flex items-center justify-between text-sm">
                       <span className="flex items-center gap-2 text-foreground">
-                        <div className={`w-2 h-2 rounded-full ${pipelineStatus?.files?.page_image ? 'bg-green-500' : 'bg-red-500'}`} />
+                        <div
+                          className={`w-2 h-2 rounded-full ${pipelineStatus?.files?.page_image ? "bg-green-500" : "bg-red-500"}`}
+                        />
                         Source Image
                       </span>
-                      <span className="text-muted-foreground text-xs">{pipelineStatus?.files?.page_image ? 'Available' : 'Missing'}</span>
+                      <span className="text-muted-foreground text-xs">
+                        {pipelineStatus?.files?.page_image
+                          ? "Available"
+                          : "Missing"}
+                      </span>
                     </li>
                     <li className="flex items-center justify-between text-sm">
                       <span className="flex items-center gap-2 text-foreground">
-                        <div className={`w-2 h-2 rounded-full ${pipelineStatus?.files?.overlay_image ? 'bg-green-500' : 'bg-yellow-500'}`} />
+                        <div
+                          className={`w-2 h-2 rounded-full ${pipelineStatus?.files?.overlay_image ? "bg-green-500" : "bg-yellow-500"}`}
+                        />
                         CV Overlay
                       </span>
-                      <span className="text-muted-foreground text-xs">{pipelineStatus?.files?.overlay_image ? 'Available' : 'Missing'}</span>
+                      <span className="text-muted-foreground text-xs">
+                        {pipelineStatus?.files?.overlay_image
+                          ? "Available"
+                          : "Missing"}
+                      </span>
                     </li>
                     <li className="flex items-center justify-between text-sm">
                       <span className="flex items-center gap-2 text-foreground">
-                        <div className={`w-2 h-2 rounded-full ${pipelineStatus?.files?.candidates_json ? 'bg-green-500' : 'bg-yellow-500'}`} />
+                        <div
+                          className={`w-2 h-2 rounded-full ${pipelineStatus?.files?.candidates_json ? "bg-green-500" : "bg-yellow-500"}`}
+                        />
                         Candidates JSON
                       </span>
-                      <span className="text-muted-foreground text-xs">{pipelineStatus?.files?.candidates_json ? 'Loaded' : 'Missing'}</span>
+                      <span className="text-muted-foreground text-xs">
+                        {pipelineStatus?.files?.candidates_json
+                          ? "Loaded"
+                          : "Missing"}
+                      </span>
                     </li>
                     <li className="flex items-center justify-between text-sm">
                       <span className="flex items-center gap-2 text-foreground">
-                        <div className={`w-2 h-2 rounded-full ${pipelineStatus?.files?.review_json ? 'bg-green-500' : 'bg-yellow-500'}`} />
+                        <div
+                          className={`w-2 h-2 rounded-full ${pipelineStatus?.files?.review_json ? "bg-green-500" : "bg-yellow-500"}`}
+                        />
                         Review Draft
                       </span>
-                      <span className="text-muted-foreground text-xs">{pipelineStatus?.files?.review_json ? 'Saved' : 'Missing'}</span>
+                      <span className="text-muted-foreground text-xs">
+                        {pipelineStatus?.files?.review_json
+                          ? "Saved"
+                          : "Missing"}
+                      </span>
                     </li>
                     <li className="flex items-center justify-between text-sm">
                       <span className="flex items-center gap-2 text-foreground">
-                        <div className={`w-2 h-2 rounded-full ${pipelineStatus?.files?.export_json ? 'bg-green-500' : 'bg-yellow-500'}`} />
+                        <div
+                          className={`w-2 h-2 rounded-full ${pipelineStatus?.files?.export_json ? "bg-green-500" : "bg-yellow-500"}`}
+                        />
                         Verified Export
                       </span>
-                      <span className="text-muted-foreground text-xs">{pipelineStatus?.files?.export_json ? 'Exported' : 'Missing'}</span>
+                      <span className="text-muted-foreground text-xs">
+                        {pipelineStatus?.files?.export_json
+                          ? "Exported"
+                          : "Missing"}
+                      </span>
                     </li>
                   </ul>
                 </div>
 
                 {/* Quick Actions */}
                 <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-                  <h4 className="text-base font-semibold mb-4">Quick Actions</h4>
+                  <h4 className="text-base font-semibold mb-4">
+                    Quick Actions
+                  </h4>
                   <div className="grid grid-cols-2 gap-3">
                     <button
                       onClick={handleSave}
-                      disabled={isSaving || candidates.length === 0 || !canSaveCandidates(candidateSource)}
+                      disabled={
+                        isSaving ||
+                        candidates.length === 0 ||
+                        !canSaveCandidates(candidateSource)
+                      }
                       className="col-span-2 flex items-center justify-center gap-2 p-3 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm font-medium"
                     >
                       {isSaving ? (
@@ -892,10 +1149,18 @@ function App() {
                       ) : (
                         <Save className="w-4 h-4" />
                       )}
-                      <span>{candidateSource === 'sample' ? 'Sample data is not saved' : isSaving ? 'Saving...' : saveSuccess ? 'Saved!' : 'Review Detections'}</span>
+                      <span>
+                        {candidateSource === "sample"
+                          ? "Sample data is not saved"
+                          : isSaving
+                            ? "Saving..."
+                            : saveSuccess
+                              ? "Saved!"
+                              : "Review Detections"}
+                      </span>
                     </button>
                     <button
-                      onClick={() => handleExport('csv')}
+                      onClick={() => handleExport("csv")}
                       disabled={isExporting.csv || candidates.length === 0}
                       className="flex flex-col items-center justify-center p-3 rounded-lg border border-border bg-muted/30 hover:bg-primary/5 hover:border-primary/20 transition-all group disabled:opacity-50 disabled:cursor-not-allowed"
                     >
@@ -904,10 +1169,12 @@ function App() {
                       ) : (
                         <Download className="w-5 h-5 mb-1 text-muted-foreground group-hover:text-primary transition-colors" />
                       )}
-                      <span className="text-xs font-medium text-foreground">{isExporting.csv ? 'Exporting...' : 'Export CSV'}</span>
+                      <span className="text-xs font-medium text-foreground">
+                        {isExporting.csv ? "Exporting..." : "Export CSV"}
+                      </span>
                     </button>
                     <button
-                      onClick={() => handleExport('json')}
+                      onClick={() => handleExport("json")}
                       disabled={isExporting.json || candidates.length === 0}
                       className="flex flex-col items-center justify-center p-3 rounded-lg border border-border bg-muted/30 hover:bg-primary/5 hover:border-primary/20 transition-all group disabled:opacity-50 disabled:cursor-not-allowed"
                     >
@@ -916,10 +1183,17 @@ function App() {
                       ) : (
                         <FileJson className="w-5 h-5 mb-1 text-muted-foreground group-hover:text-primary transition-colors" />
                       )}
-                      <span className="text-xs font-medium text-foreground">{isExporting.json ? 'Exporting...' : 'Export JSON'}</span>
+                      <span className="text-xs font-medium text-foreground">
+                        {isExporting.json ? "Exporting..." : "Export JSON"}
+                      </span>
                     </button>
                     <button
-                      onClick={() => window.open(`/api/downloads/csv/${activePlan}`, '_blank')}
+                      onClick={() =>
+                        window.open(
+                          `/api/downloads/csv/${activePlan}`,
+                          "_blank",
+                        )
+                      }
                       disabled={candidates.length === 0}
                       className="col-span-2 flex items-center justify-center gap-2 p-2.5 rounded-lg border border-border bg-muted/20 hover:bg-primary/5 hover:border-primary/25 transition-all text-xs font-semibold disabled:opacity-50"
                     >
@@ -928,14 +1202,13 @@ function App() {
                     </button>
                   </div>
                 </div>
-
               </div>
             </div>
           )}
         </div>
       </main>
     </div>
-  )
+  );
 }
 
-export default App
+export default App;

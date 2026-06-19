@@ -47,4 +47,3 @@ def serialize_csv(rows: list[dict[str, object]]) -> str:
     writer.writeheader()
     writer.writerows(rows)
     return output.getvalue()
-

@@ -7,7 +7,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, UploadFile, BackgroundTasks, HTTPException
+from fastapi import BackgroundTasks, FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
@@ -34,7 +34,6 @@ from server.app.services.metadata_loader import load_metadata
 from server.app.services.pipeline_status import check_pipeline_status
 from server.app.services.plan_discovery import discover_plans
 from server.app.services.review_saver import save_reviewed_candidates
-
 
 JOBS: dict[str, str] = {}
 
@@ -172,14 +171,13 @@ def download_pipeline_csv(plan_id: str) -> Response:
     csv_path = project_root / "outputs" / "contract_exports" / f"{plan_id}_contract.csv"
     if not csv_path.exists():
         raise HTTPException(status_code=404, detail="Contract CSV not found")
-    with open(csv_path, "r", encoding="utf-8") as f:
+    with open(csv_path, encoding="utf-8") as f:
         content = f.read()
     return Response(
         content=content,
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename={plan_id}_contract.csv"},
     )
-
 
 
 @app.get("/api/status/{plan_id}")
@@ -231,6 +229,7 @@ def get_overlay_image(plan_id: str) -> Response:
         content = f.read()
     return Response(content=content, media_type="image/png")
 
+
 def run_pipeline_task(project_root: Path, pdf_path: Path, plan_id: str) -> None:
     script = project_root / "scripts" / "run_pipeline_on_pdfs.py"
     try:
@@ -272,7 +271,9 @@ async def import_pdf(file: UploadFile, background_tasks: BackgroundTasks) -> dic
                 if isinstance(meta_data, dict) and meta_data.get("pdf_hash") == pdf_hash:
                     return {
                         "status": "duplicate",
-                        "plan_id": meta_data.get("plan_id", meta_path.stem.removesuffix("_metadata"))
+                        "plan_id": meta_data.get(
+                            "plan_id", meta_path.stem.removesuffix("_metadata")
+                        ),
                     }
             except Exception:
                 pass
@@ -302,7 +303,4 @@ async def import_pdf(file: UploadFile, background_tasks: BackgroundTasks) -> dic
     JOBS[plan_id] = "processing"
     background_tasks.add_task(run_pipeline_task, project_root, pdf_path, plan_id)
 
-    return {
-        "plan_id": plan_id,
-        "status": "processing"
-    }
+    return {"plan_id": plan_id, "status": "processing"}

@@ -1,6 +1,7 @@
+import os
+
 import fitz
 import pandas as pd
-import os
 
 PDF_FOLDER = "imports"
 OUTPUT_FILE = "fixtures/raw_text.csv"
@@ -23,14 +24,16 @@ for pdf_name in sorted(os.listdir(PDF_FOLDER)):
         for line in text.strip().split("\n"):
             line = line.strip()
             if line:
-                all_lines.append({
-                    "filename": pdf_name.replace(".pdf", ""),
-                    "text": line,
-                    "x0": round(x0, 2),
-                    "y0": round(y0, 2),
-                    "page_width": round(page_w, 2),
-                    "page_height": round(page_h, 2),
-                })
+                all_lines.append(
+                    {
+                        "filename": pdf_name.replace(".pdf", ""),
+                        "text": line,
+                        "x0": round(x0, 2),
+                        "y0": round(y0, 2),
+                        "page_width": round(page_w, 2),
+                        "page_height": round(page_h, 2),
+                    }
+                )
     doc.close()
 
 df = pd.DataFrame(all_lines)

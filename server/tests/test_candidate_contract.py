@@ -88,7 +88,9 @@ class CandidateContractTests(unittest.TestCase):
         self.assertIn("candidate cand-004 has invalid status done", result.errors)
 
     def test_contract_lists_match_issue_requirements(self) -> None:
-        self.assertEqual(REQUIRED_CANDIDATE_FIELDS, ("candidate_id", "source", "bbox_image", "status"))
+        self.assertEqual(
+            REQUIRED_CANDIDATE_FIELDS, ("candidate_id", "source", "bbox_image", "status")
+        )
         self.assertIn("raw_text", OPTIONAL_CANDIDATE_FIELDS)
         self.assertIn("verified", ALLOWED_STATUS_VALUES)
 

@@ -20,7 +20,7 @@ def parse_opening_label(text: str) -> dict[str, Any] | None:
     diameter_mm = _parse_diameter(normalized)
     # An explicit separator (\ x l |) in the raw text strongly signals a dimension expression.
     # In that case, we allow dimension parsing even without a label prefix.
-    has_explicit_separator = bool(re.search(r'\d\s*(?:\\|[xXlL\|])\s*\d', text))
+    has_explicit_separator = bool(re.search(r"\d\s*(?:\\|[xXlL\|])\s*\d", text))
     require_prefix = label_type is None and diameter_mm is None and not has_explicit_separator
     width_mm, height_mm = _parse_rectangular_dimensions(normalized, require_prefix=require_prefix)
 
@@ -41,39 +41,34 @@ def parse_opening_label(text: str) -> dict[str, Any] | None:
 def normalize_ocr_text(text: str) -> str:
     """Apply specific OCR normalization rules for opening labels."""
     normalized = text.upper()
-    
+
     # 1. Normalize @ followed by digits to Ø: e.g. @15 -> Ø15, @25 -> Ø25
-    normalized = re.sub(r'@\s*(\d{1,3})', r'Ø\1', normalized)
-    
+    normalized = re.sub(r"@\s*(\d{1,3})", r"Ø\1", normalized)
+
     # 2. Normalize rectangular dimension separators to '/' between digits (e.g. 65 \ 38 -> 65/38, 65 l 38 -> 65/38, 65x38 -> 65/38)
-    normalized = re.sub(r'(\d{1,3})\s*(?:\\|X|L|\|)\s*(\d{1,3})', r'\1/\2', normalized)
-    
+    normalized = re.sub(r"(\d{1,3})\s*(?:\\|X|L|\|)\s*(\d{1,3})", r"\1/\2", normalized)
+
     # Check if a label prefix is nearby (WDB, DDB, UZDB, DDP)
     has_prefix = any(p in normalized for p in ("WDB", "DDB", "UZDB", "DDP"))
-    
+
     if has_prefix:
         # - "O15" -> "Ø15", "015" -> "Ø15", "025" -> "Ø25"
-        normalized = re.sub(r'\b([O0])(15|25)\b', r'Ø\2', normalized)
-        
+        normalized = re.sub(r"\b([O0])(15|25)\b", r"Ø\2", normalized)
+
         # - "DDB 916" -> "DDB Ø16"
-        normalized = re.sub(r'\bDDB\s*916\b', 'DDB Ø16', normalized)
-        
+        normalized = re.sub(r"\bDDB\s*916\b", "DDB Ø16", normalized)
+
         # - "DDB Bio" -> "DDB Ø10"
-        normalized = re.sub(r'\bDDB\s*BIO\b', 'DDB Ø10', normalized)
-        
+        normalized = re.sub(r"\bDDB\s*BIO\b", "DDB Ø10", normalized)
+
     return normalized
 
 
 def _normalize_text(text: str) -> str:
     """Normalize common OCR/PDF text variants without changing meaning."""
     text = normalize_ocr_text(text)
-    
-    normalized = (
-        text
-        .replace("⌀", "Ø")
-        .replace("Ф", "Ø")
-        .replace("Р", "P")
-    )
+
+    normalized = text.replace("⌀", "Ø").replace("Ф", "Ø").replace("Р", "P")
     return normalized
 
 
@@ -88,7 +83,9 @@ def _parse_label_type(text: str) -> str | None:
     return None
 
 
-def _parse_rectangular_dimensions(text: str, require_prefix: bool = False) -> tuple[int | None, int | None]:
+def _parse_rectangular_dimensions(
+    text: str, require_prefix: bool = False
+) -> tuple[int | None, int | None]:
     # Require both sides to be at least 2 digits.
     # Not preceded/followed by a digit or decimal point (avoids matching 13.5/40 → 3/40).
     # Works for both spaced "WDB 40/20" and compact "DDB130/140" forms.

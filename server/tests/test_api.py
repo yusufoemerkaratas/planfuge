@@ -520,16 +520,17 @@ class ApiTests(unittest.TestCase):
 
     def test_import_pdf_rejects_non_pdf(self) -> None:
         from fastapi.testclient import TestClient
+
         client = TestClient(app)
         response = client.post(
-            "/api/import/pdf",
-            files={"file": ("test.txt", b"plain text", "text/plain")}
+            "/api/import/pdf", files={"file": ("test.txt", b"plain text", "text/plain")}
         )
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json()["detail"], "Only PDF files are accepted.")
 
     def test_import_pdf_duplicate_hash(self) -> None:
         import hashlib
+
         from fastapi.testclient import TestClient
 
         pdf_content = b"%PDF-1.4 dummy pdf content"
@@ -541,16 +542,12 @@ class ApiTests(unittest.TestCase):
             metadata_dir = root / "data" / "metadata"
             metadata_dir.mkdir(parents=True)
             metadata_file = metadata_dir / "SP_U1_0001_metadata.json"
-            metadata_file.write_text(json.dumps({
-                "plan_id": "SP_U1_0001",
-                "pdf_hash": pdf_hash
-            }))
+            metadata_file.write_text(json.dumps({"plan_id": "SP_U1_0001", "pdf_hash": pdf_hash}))
 
             app.state.project_root = root
             client = TestClient(app)
             response = client.post(
-                "/api/import/pdf",
-                files={"file": ("new_plan.pdf", pdf_content, "application/pdf")}
+                "/api/import/pdf", files={"file": ("new_plan.pdf", pdf_content, "application/pdf")}
             )
             self.assertEqual(response.status_code, 200)
             data = response.json()
@@ -560,6 +557,7 @@ class ApiTests(unittest.TestCase):
     @unittest.mock.patch("subprocess.run")
     def test_import_pdf_async_and_status(self, mock_run) -> None:
         import unittest.mock
+
         from fastapi.testclient import TestClient
 
         pdf_content = b"%PDF-1.4 dummy pdf content for async"
@@ -569,6 +567,7 @@ class ApiTests(unittest.TestCase):
 
             def mock_subprocess(*args, **kwargs):
                 from server.app.api import JOBS
+
                 self.assertEqual(JOBS.get("async_plan"), "processing")
 
                 # Mock create outputs
@@ -590,7 +589,7 @@ class ApiTests(unittest.TestCase):
             client = TestClient(app)
             response = client.post(
                 "/api/import/pdf",
-                files={"file": ("async_plan.pdf", pdf_content, "application/pdf")}
+                files={"file": ("async_plan.pdf", pdf_content, "application/pdf")},
             )
             self.assertEqual(response.status_code, 200)
             data = response.json()
@@ -623,7 +622,6 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(response.text, "Floor,Quantity\nU1,5")
             self.assertEqual(response.headers["content-type"], "text/csv; charset=utf-8")
 
-
             # Missing CSV returns 404
             response_missing = client.get("/api/downloads/csv/MISSING")
             self.assertEqual(response_missing.status_code, 404)
@@ -631,6 +629,7 @@ class ApiTests(unittest.TestCase):
     @unittest.mock.patch("subprocess.run")
     def test_import_pdf_generates_overlay(self, mock_run) -> None:
         import unittest.mock
+
         from fastapi.testclient import TestClient
 
         pdf_content = b"%PDF-1.4 dummy pdf content for overlay test"
@@ -664,7 +663,7 @@ class ApiTests(unittest.TestCase):
             client = TestClient(app)
             response = client.post(
                 "/api/import/pdf",
-                files={"file": ("overlay_plan.pdf", pdf_content, "application/pdf")}
+                files={"file": ("overlay_plan.pdf", pdf_content, "application/pdf")},
             )
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.json()["status"], "processing")
@@ -674,7 +673,7 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(status_response.status_code, 200)
             status_data = status_response.json()
             self.assertEqual(status_data["status"], "completed")
-            
+
             # This assertion should FAIL because the backend pipeline script does not yet create the overlay image.
             self.assertTrue(status_data["files"]["overlay_image"])
 

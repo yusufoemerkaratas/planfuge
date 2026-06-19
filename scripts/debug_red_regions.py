@@ -19,7 +19,9 @@ def main() -> None:
     parser.add_argument("--image", required=True, help="Path to data/pages/<plan_id>.png")
     parser.add_argument("--out", default="outputs", help="Output root directory")
     parser.add_argument("--plan-id", help="Plan ID. Defaults to the image filename stem.")
-    parser.add_argument("--min-area", type=int, default=250, help="Minimum red region area in pixels")
+    parser.add_argument(
+        "--min-area", type=int, default=250, help="Minimum red region area in pixels"
+    )
     args = parser.parse_args()
 
     image_path = Path(args.image)

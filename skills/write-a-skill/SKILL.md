@@ -5,6 +5,7 @@ description: >-
   progressive disclosure. Use when the user wants to create, rewrite, refine, or
   review a skill.
 ---
+
 # Write a Skill
 
 ## Quick Start
@@ -18,9 +19,11 @@ description: What it does. Use when specific trigger/context appears.
 ---
 
 ## Quick Start
+
 [Minimal usage guidance]
 
 ## Workflow
+
 [Only the steps needed to run the skill]
 ```
 

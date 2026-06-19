@@ -17,6 +17,7 @@ if str(REPO_ROOT) not in sys.path:
 
 try:
     import pytesseract
+
     PYTESSERACT_AVAILABLE = True
 except ImportError:
     PYTESSERACT_AVAILABLE = False
@@ -32,6 +33,7 @@ def apply_baseline(img: Image.Image) -> Image.Image:
 def apply_red_cleanup(img: Image.Image) -> Image.Image:
     try:
         from src.image.red_cleanup import remove_red_pixels
+
         cleaned_img, _ = remove_red_pixels(img, dilation_iterations=1)
         return cleaned_img.convert("L")
     except Exception as e:
@@ -69,7 +71,7 @@ PREPROCESSING_STRATEGIES = {
 def run_tesseract(img_gray: Image.Image, psm: int = 6) -> str:
     if not PYTESSERACT_AVAILABLE or not check_tesseract_availability():
         return ""
-    
+
     config_str = f"--psm {psm}"
     # try deu+eng
     try:
@@ -92,12 +94,12 @@ def main() -> None:
     parser.add_argument(
         "--benchmark-dir",
         default="data/ocr_benchmark",
-        help="Path to the benchmark folder. Defaults to data/ocr_benchmark."
+        help="Path to the benchmark folder. Defaults to data/ocr_benchmark.",
     )
     parser.add_argument(
         "--out",
         default="outputs/debug/ocr_benchmark_report.json",
-        help="Path to save the JSON report. Defaults to outputs/debug/ocr_benchmark_report.json."
+        help="Path to save the JSON report. Defaults to outputs/debug/ocr_benchmark_report.json.",
     )
     args = parser.parse_args()
 
@@ -119,10 +121,10 @@ def main() -> None:
         sys.exit(1)
 
     # Load targets
-    with open(expected_json_path, "r", encoding="utf-8") as f:
+    with open(expected_json_path, encoding="utf-8") as f:
         expected_data = json.load(f)
 
-    print(f"OCR Regression Benchmark for Hard Crops")
+    print("OCR Regression Benchmark for Hard Crops")
     print(f"Benchmark Dir: {benchmark_dir}")
     print(f"Output Report: {report_output_path}")
     print(f"Loaded {len(expected_data)} target crops.")
@@ -154,11 +156,11 @@ def main() -> None:
         try:
             with Image.open(crop_path) as img:
                 img_rgb = img.convert("RGB")
-                
+
                 for method_name, apply_fn in PREPROCESSING_STRATEGIES.items():
                     # Process image
                     processed_img_gray = apply_fn(img_rgb)
-                    
+
                     # Run OCR
                     ocr_text = run_tesseract(processed_img_gray, psm=6)
                     ocr_text_clean = ocr_text.strip() if ocr_text else ""
@@ -169,7 +171,7 @@ def main() -> None:
                     for t in expected_tokens:
                         if t.upper() in ocr_text_upper:
                             hits.append(t)
-                    
+
                     # Calculate critical errors
                     errors_found = []
                     for t in must_not_contain:
@@ -208,10 +210,12 @@ def main() -> None:
             print(f"Error processing crop {crop_filename}: {crop_err}", file=sys.stderr)
 
     # Print summary report
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("OCR BENCHMARK SUMMARY REPORT")
-    print("="*80)
-    header = f"{'Method':<30} | {'Token Hits':<12} | {'Critical Errors':<16} | {'Parser Success':<15}"
+    print("=" * 80)
+    header = (
+        f"{'Method':<30} | {'Token Hits':<12} | {'Critical Errors':<16} | {'Parser Success':<15}"
+    )
     print(header)
     print("-" * len(header))
 
@@ -222,12 +226,12 @@ def main() -> None:
         print(f"{method_name:<30} | {hits_str:<12} | {errors_str:<16} | {success_str:<15}")
 
     # Build recommendations dynamically
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("RECOMMENDATIONS & REGRESSION EVALUATION")
-    print("="*80)
+    print("=" * 80)
 
     baseline_stats = summary_stats["baseline_grayscale_psm6"]
-    
+
     recommendations = []
     for method_name, stats in summary_stats.items():
         if method_name == "baseline_grayscale_psm6":
@@ -262,9 +266,7 @@ def main() -> None:
                 f"- [UPGRADE] Strongly consider '{method_name}'. (Improvements: {', '.join(improvements)} compared to baseline)"
             )
         else:
-            recommendations.append(
-                f"- [NO CHANGE] '{method_name}' is equivalent to baseline."
-            )
+            recommendations.append(f"- [NO CHANGE] '{method_name}' is equivalent to baseline.")
 
     for rec in recommendations:
         print(rec)
@@ -281,7 +283,7 @@ def main() -> None:
     report_output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(report_output_path, "w", encoding="utf-8") as f:
         json.dump(report_data, f, indent=2, ensure_ascii=False)
-        
+
     print(f"\nSaved full benchmark report to: {report_output_path}")
 
 

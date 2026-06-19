@@ -15,7 +15,7 @@ class ReviewSaverTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            
+
             result = save_reviewed_candidates(root, "SP_U1_0003", candidates)
 
             self.assertEqual(result["status"], "success")
@@ -35,7 +35,7 @@ class ReviewSaverTests(unittest.TestCase):
     def test_saves_empty_candidates_successfully(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            
+
             result = save_reviewed_candidates(root, "SP_U1_0003", [])
 
             saved_file = Path(result["path"])

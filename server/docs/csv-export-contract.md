@@ -5,27 +5,27 @@ processing. It focuses on WDB and DDB openings detected from imported PDFs.
 
 ## Required Columns
 
-| Column | Type | Description |
-| --- | --- | --- |
-| Floor | string | Floor identifier, for example `U1`. |
-| Construction phase/Plan name | string | Source plan or construction phase name. |
-| Length/cm | number | Rectangular opening length. For round openings, this equals the diameter. |
-| Width/cm | number | Rectangular opening width. For round openings, this equals the diameter. |
-| Height/cm | number | Slab or opening height, usually from the associated `d=` marking. |
-| Geometry | string | `round` or `rectangular`. |
-| Type | string | `Ceiling`, `Wall`, or `Unknown`. |
-| Number | number | Deduplicated quantity for this grouped opening. |
-| Weight/kg | number | Estimated weight per grouped row, rounded to one decimal place. |
+| Column                       | Type   | Description                                                               |
+| ---------------------------- | ------ | ------------------------------------------------------------------------- |
+| Floor                        | string | Floor identifier, for example `U1`.                                       |
+| Construction phase/Plan name | string | Source plan or construction phase name.                                   |
+| Length/cm                    | number | Rectangular opening length. For round openings, this equals the diameter. |
+| Width/cm                     | number | Rectangular opening width. For round openings, this equals the diameter.  |
+| Height/cm                    | number | Slab or opening height, usually from the associated `d=` marking.         |
+| Geometry                     | string | `round` or `rectangular`.                                                 |
+| Type                         | string | `Ceiling`, `Wall`, or `Unknown`.                                          |
+| Number                       | number | Deduplicated quantity for this grouped opening.                           |
+| Weight/kg                    | number | Estimated weight per grouped row, rounded to one decimal place.           |
 
 ## Audit Columns
 
-| Column | Type | Description |
-| --- | --- | --- |
-| Source PDF | string | Imported PDF file name. |
-| Grid coordinate | string | Approximate grid coordinate, or `grid_unknown`. |
-| Color zone | string | Detected colored zone identifier, or `zone_unknown`. |
-| Confidence | number | Confidence from `0` to `1`. |
-| Review status | string | `ready`, `review_required`, or `split_recommended`. |
+| Column          | Type   | Description                                          |
+| --------------- | ------ | ---------------------------------------------------- |
+| Source PDF      | string | Imported PDF file name.                              |
+| Grid coordinate | string | Approximate grid coordinate, or `grid_unknown`.      |
+| Color zone      | string | Detected colored zone identifier, or `zone_unknown`. |
+| Confidence      | number | Confidence from `0` to `1`.                          |
+| Review status   | string | `ready`, `review_required`, or `split_recommended`.  |
 
 ## Round Opening Mapping
 

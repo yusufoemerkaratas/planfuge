@@ -9,8 +9,14 @@
       "bottom_right_pixel": [1000, 1000],
       "bottom_right_coord": "B-2"
     },
-    "column_positions": [[0, "A"], [1000, "B"]],
-    "row_positions": [[0, "1"], [1000, "2"]],
+    "column_positions": [
+      [0, "A"],
+      [1000, "B"]
+    ],
+    "row_positions": [
+      [0, "1"],
+      [1000, "2"]
+    ],
     "points": [
       [0, 0, "A-1"],
       [1000, 20, "B-1"],
@@ -21,7 +27,12 @@
   "color_zones": [
     {
       "zone_id": "zone-example",
-      "polygon": [[0, 0], [1000, 0], [1000, 1000], [0, 1000]]
+      "polygon": [
+        [0, 0],
+        [1000, 0],
+        [1000, 1000],
+        [0, 1000]
+      ]
     }
   ]
 }

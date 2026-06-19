@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from collections import Counter
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -84,7 +83,7 @@ def main() -> None:
     # Step 2: Cropping red regions... (will run inside run_png_extraction_pipeline)
     # To log precisely inside the step-by-step CLI execution, we report before invoking or call them.
     # But since run_png_extraction_pipeline handles everything internally, we can print progress.
-    
+
     print("Step 2: Cropping red regions...")
     print("Step 3: Running OCR...")
     ocr_avail = check_tesseract_availability()
@@ -103,7 +102,7 @@ def main() -> None:
             min_area_px=args.min_area,
             psm=args.psm,
             default_status=args.status,
-            clean_red=args.clean_red
+            clean_red=args.clean_red,
         )
     except Exception as e:
         print(f"\nPipeline Error: {e}", file=sys.stderr)
@@ -113,7 +112,9 @@ def main() -> None:
     print("\n--- Pipeline Summary ---")
     print(f"Red region count: {len(candidates)}")
     print(f"Crop count: {len(candidates)}")
-    print(f"OCR availability summary: {'Available' if ocr_avail else 'Unavailable (Fallback Used)'}")
+    print(
+        f"OCR availability summary: {'Available' if ocr_avail else 'Unavailable (Fallback Used)'}"
+    )
     print(f"Candidate count: {len(candidates)}")
     print(f"Final candidates JSON path: {candidates_path}")
 

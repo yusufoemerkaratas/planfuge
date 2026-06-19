@@ -56,7 +56,11 @@ def _color_zones(value: Any) -> list[dict[str, Any]]:
         if not isinstance(polygon, list) or len(polygon) < 3:
             raise ValueError("each color zone polygon must contain at least three points")
         for point in polygon:
-            if not isinstance(point, list) or len(point) != 2 or not all(isinstance(v, (int, float)) for v in point):
+            if (
+                not isinstance(point, list)
+                or len(point) != 2
+                or not all(isinstance(v, (int, float)) for v in point)
+            ):
                 raise ValueError("color zone points must be [x, y] pairs")
     return value
 
@@ -72,16 +76,22 @@ class PlanConfig:
             raise ValueError("plan_id must match the requested plan")
 
         self.scale = int(_positive_number(data.get("scale", 50), "scale"))
-        self.default_height_cm = _positive_number(data.get("default_height_cm", 30.0), "default_height_cm")
-        
+        self.default_height_cm = _positive_number(
+            data.get("default_height_cm", 30.0), "default_height_cm"
+        )
+
         grid_data = data.get("grid", {})
         if not isinstance(grid_data, dict):
             raise ValueError("grid must be an object")
         self.grid_anchors = grid_data.get("anchors")
         if self.grid_anchors is not None and not isinstance(self.grid_anchors, dict):
             raise ValueError("grid.anchors must be an object")
-        self.column_positions = _grid_positions(grid_data.get("column_positions", []), "grid.column_positions")
-        self.row_positions = _grid_positions(grid_data.get("row_positions", []), "grid.row_positions")
+        self.column_positions = _grid_positions(
+            grid_data.get("column_positions", []), "grid.column_positions"
+        )
+        self.row_positions = _grid_positions(
+            grid_data.get("row_positions", []), "grid.row_positions"
+        )
         self.grid_points = _grid_points(grid_data.get("points", []))
         self.color_zones = _color_zones(data.get("color_zones", []))
 
@@ -92,7 +102,7 @@ class PlanConfig:
             return cls(plan_id)
 
         try:
-            with open(config_path, "r", encoding="utf-8") as f:
+            with open(config_path, encoding="utf-8") as f:
                 data = json.load(f)
             return cls(plan_id, data)
         except Exception as e:

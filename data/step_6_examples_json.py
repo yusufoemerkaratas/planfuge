@@ -2,11 +2,11 @@ import json
 import os
 import re
 
-WORDS_FOLDER      = "words"
+WORDS_FOLDER = "words"
 ANNOTATIONS_FOLDER = "annotations"
-PADDING           = 50  # bounding box etrafına piksel ekle
+PADDING = 50  # bounding box etrafına piksel ekle
 
-pat_opening = re.compile(r'(DDB|WDB)', re.IGNORECASE)
+pat_opening = re.compile(r"(DDB|WDB)", re.IGNORECASE)
 
 for words_file in sorted(os.listdir(WORDS_FOLDER)):
     if not words_file.endswith("_words.json"):
@@ -29,15 +29,17 @@ for words_file in sorted(os.listdir(WORDS_FOLDER)):
             x1 = int(w["x1"] * scale) + PADDING
             y1 = int(w["y1"] * scale) + PADDING
             bbox = [x0, y0, x1 - x0, y1 - y0]  # [x, y, w, h] — matches bbox_image contract
-            examples.append({
-                "example_id": f"{plan_id}-EX-{count+1:02d}",
-                "plan_id": plan_id,
-                "rough_bbox_image": bbox,
-                "target_type": "opening_label",
-                "expected_text": w["text"],
-                "is_opening_relevant": True,
-                "comment": "Auto-generated — visually verified"
-            })
+            examples.append(
+                {
+                    "example_id": f"{plan_id}-EX-{count+1:02d}",
+                    "plan_id": plan_id,
+                    "rough_bbox_image": bbox,
+                    "target_type": "opening_label",
+                    "expected_text": w["text"],
+                    "is_opening_relevant": True,
+                    "comment": "Auto-generated — visually verified",
+                }
+            )
             count += 1
 
     out_path = os.path.join(ANNOTATIONS_FOLDER, f"{plan_id}_examples.json")

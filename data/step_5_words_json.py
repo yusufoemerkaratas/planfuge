@@ -1,6 +1,7 @@
-import fitz
 import json
 import os
+
+import fitz
 
 PDF_FOLDER = "imports"
 WORDS_FOLDER = "words"
@@ -17,14 +18,16 @@ for pdf_name in sorted(os.listdir(PDF_FOLDER)):
     words = []
     for w in page.get_text("words"):
         x0, y0, x1, y1, text, *_ = w
-        words.append({
-            "text": text.strip(),
-            "x0": round(x0, 2),
-            "y0": round(y0, 2),
-            "x1": round(x1, 2),
-            "y1": round(y1, 2),
-            "page": 1
-        })
+        words.append(
+            {
+                "text": text.strip(),
+                "x0": round(x0, 2),
+                "y0": round(y0, 2),
+                "x1": round(x1, 2),
+                "y1": round(y1, 2),
+                "page": 1,
+            }
+        )
 
     out_path = os.path.join(WORDS_FOLDER, f"{plan_id}_words.json")
     with open(out_path, "w", encoding="utf-8") as f:

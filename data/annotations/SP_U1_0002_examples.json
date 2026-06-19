@@ -2,12 +2,7 @@
   {
     "example_id": "SP_U1_0002-EX-01",
     "plan_id": "SP_U1_0002",
-    "rough_bbox_image": [
-      1344,
-      5926,
-      150,
-      176
-    ],
+    "rough_bbox_image": [1344, 5926, 150, 176],
     "target_type": "opening_label",
     "expected_text": "WDB",
     "is_opening_relevant": true,
@@ -16,12 +11,7 @@
   {
     "example_id": "SP_U1_0002-EX-02",
     "plan_id": "SP_U1_0002",
-    "rough_bbox_image": [
-      1507,
-      6756,
-      149,
-      298
-    ],
+    "rough_bbox_image": [1507, 6756, 149, 298],
     "target_type": "opening_label",
     "expected_text": "DDB84/94",
     "is_opening_relevant": true,
@@ -30,12 +20,7 @@
   {
     "example_id": "SP_U1_0002-EX-03",
     "plan_id": "SP_U1_0002",
-    "rough_bbox_image": [
-      1327,
-      7378,
-      150,
-      316
-    ],
+    "rough_bbox_image": [1327, 7378, 150, 316],
     "target_type": "opening_label",
     "expected_text": "DDB160/30",
     "is_opening_relevant": true,
@@ -44,12 +29,7 @@
   {
     "example_id": "SP_U1_0002-EX-04",
     "plan_id": "SP_U1_0002",
-    "rough_bbox_image": [
-      1958,
-      7761,
-      145,
-      171
-    ],
+    "rough_bbox_image": [1958, 7761, 145, 171],
     "target_type": "opening_label",
     "expected_text": "DDB",
     "is_opening_relevant": true,
@@ -58,12 +38,7 @@
   {
     "example_id": "SP_U1_0002-EX-05",
     "plan_id": "SP_U1_0002",
-    "rough_bbox_image": [
-      5203,
-      8154,
-      150,
-      297
-    ],
+    "rough_bbox_image": [5203, 8154, 150, 297],
     "target_type": "opening_label",
     "expected_text": "DDB25/40",
     "is_opening_relevant": true,
@@ -72,12 +47,7 @@
   {
     "example_id": "SP_U1_0002-EX-06",
     "plan_id": "SP_U1_0002",
-    "rough_bbox_image": [
-      1592,
-      5958,
-      149,
-      176
-    ],
+    "rough_bbox_image": [1592, 5958, 149, 176],
     "target_type": "opening_label",
     "expected_text": "WDB",
     "is_opening_relevant": true,
@@ -86,12 +56,7 @@
   {
     "example_id": "SP_U1_0002-EX-07",
     "plan_id": "SP_U1_0002",
-    "rough_bbox_image": [
-      1406,
-      5751,
-      150,
-      194
-    ],
+    "rough_bbox_image": [1406, 5751, 150, 194],
     "target_type": "non_opening_label",
     "expected_text": "UKRD",
     "is_opening_relevant": false,
@@ -100,12 +65,7 @@
   {
     "example_id": "SP_U1_0002-EX-08",
     "plan_id": "SP_U1_0002",
-    "rough_bbox_image": [
-      591,
-      6622,
-      149,
-      147
-    ],
+    "rough_bbox_image": [591, 6622, 149, 147],
     "target_type": "non_opening_label",
     "expected_text": "RA",
     "is_opening_relevant": false,

@@ -1,10 +1,11 @@
-from PIL import Image, ImageDraw, ImageFont
 import json
 import os
 
-PAGES_FOLDER      = "pages"
+from PIL import Image, ImageDraw
+
+PAGES_FOLDER = "pages"
 ANNOTATIONS_FOLDER = "annotations"
-OUTPUT_FOLDER     = "samples"  # görsel çıktılar buraya
+OUTPUT_FOLDER = "samples"  # görsel çıktılar buraya
 
 Image.MAX_IMAGE_PIXELS = None
 

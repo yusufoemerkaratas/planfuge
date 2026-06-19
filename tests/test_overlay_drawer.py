@@ -2,6 +2,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+
 from PIL import Image
 
 
@@ -11,7 +12,7 @@ class OverlayDrawerTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            
+
             # Create a mock plan PNG
             img = Image.new("RGB", (1000, 1000), color="white")
             image_path = root / "mock_plan.png"
@@ -24,14 +25,14 @@ class OverlayDrawerTests(unittest.TestCase):
                     {
                         "candidate_id": "cand-001",
                         "bbox_image": [100, 150, 200, 100],
-                        "status": "needs_review"
+                        "status": "needs_review",
                     },
                     {
                         "candidate_id": "cand-002",
                         "bbox_image": [400, 500, 50, 50],
-                        "status": "verified"
-                    }
-                ]
+                        "status": "verified",
+                    },
+                ],
             }
             candidates_path = root / "mock_candidates.json"
             candidates_path.write_text(json.dumps(candidates_data), encoding="utf-8")

@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import urllib.request
 from pathlib import Path
 
@@ -43,29 +42,34 @@ def main() -> None:
 
     # Create temporary mock assets
     TEMP_PNG.write_text("dummy page png content", encoding="utf-8")
-    TEMP_JSON.write_text(json.dumps({
-        "plan_id": "SMOKE_TEST_TEMP",
-        "candidate_count": 1,
-        "candidates": [
+    TEMP_JSON.write_text(
+        json.dumps(
             {
-                "candidate_id": "smoke-001",
-                "source": "file",
-                "label_type": "WDB",
-                "raw_text": "WDB 10/20",
-                "bbox_image": [100, 100, 50, 50],
-                "crop_path": None,
-                "width_mm": 100,
-                "height_mm": 200,
-                "diameter_mm": None,
-                "ra_value": None,
-                "ok_value": None,
-                "reference": None,
-                "confidence": 1.0,
-                "review_comment": None,
-                "status": "needs_review"
+                "plan_id": "SMOKE_TEST_TEMP",
+                "candidate_count": 1,
+                "candidates": [
+                    {
+                        "candidate_id": "smoke-001",
+                        "source": "file",
+                        "label_type": "WDB",
+                        "raw_text": "WDB 10/20",
+                        "bbox_image": [100, 100, 50, 50],
+                        "crop_path": None,
+                        "width_mm": 100,
+                        "height_mm": 200,
+                        "diameter_mm": None,
+                        "ra_value": None,
+                        "ok_value": None,
+                        "reference": None,
+                        "confidence": 1.0,
+                        "review_comment": None,
+                        "status": "needs_review",
+                    }
+                ],
             }
-        ]
-    }), encoding="utf-8")
+        ),
+        encoding="utf-8",
+    )
 
     try:
         health_body, _ = fetch(base_url, "/health")
