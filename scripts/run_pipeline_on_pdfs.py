@@ -316,10 +316,37 @@ def main() -> None:
             mat = fitz.Matrix(300 / 72, 300 / 72)  # 300 DPI
             pix = page.get_pixmap(matrix=mat)
             pix.save(png_path)
-            doc.close()
             print(f"    Saved rendered PNG ({pix.width} x {pix.height} px)")
+
+            # Extract PDF words for candidate search dynamically
+            words = []
+            for w in page.get_text("words"):
+                x0, y0, x1, y1, text, *_ = w
+                words.append(
+                    {
+                        "text": text.strip(),
+                        "x0": round(x0, 2),
+                        "y0": round(y0, 2),
+                        "x1": round(x1, 2),
+                        "y1": round(y1, 2),
+                        "page": 1,
+                    }
+                )
+            import json
+
+            words_dir = REPO_ROOT / "data" / "words"
+            words_dir.mkdir(parents=True, exist_ok=True)
+            words_path = words_dir / f"{plan_id}_words.json"
+            with open(words_path, "w", encoding="utf-8") as f:
+                json.dump(words, f, indent=2, ensure_ascii=False)
+            print(f"    Extracted {len(words)} PDF words to {words_path}")
+
+            doc.close()
         except Exception as render_err:
-            print(f"  Error rendering PDF {pdf_path.name}: {render_err}", file=sys.stderr)
+            print(
+                f"  Error rendering PDF or extracting words for {pdf_path.name}: {render_err}",
+                file=sys.stderr,
+            )
             continue
 
         # 1b. Auto-generate plan config if one doesn't already exist
