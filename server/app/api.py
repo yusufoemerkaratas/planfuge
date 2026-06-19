@@ -239,6 +239,14 @@ def run_pipeline_task(project_root: Path, pdf_path: Path, plan_id: str) -> None:
             text=True,
             cwd=str(project_root),
         )
+        # Log stdout/stderr so we can debug pipeline run in Docker logs
+        if result.stdout:
+            print(f"--- Pipeline Stdout for {plan_id} ---", flush=True)
+            print(result.stdout, flush=True)
+        if result.stderr:
+            print(f"--- Pipeline Stderr for {plan_id} ---", flush=True)
+            print(result.stderr, flush=True)
+
         if result.returncode == 0:
             JOBS[plan_id] = "completed"
             rendered_png = project_root / "outputs" / "rendered" / f"{plan_id}.png"
@@ -248,8 +256,10 @@ def run_pipeline_task(project_root: Path, pdf_path: Path, plan_id: str) -> None:
                 shutil.copy2(rendered_png, target_png)
         else:
             JOBS[plan_id] = "failed"
-    except Exception:
+            print(f"Pipeline failed for {plan_id} with exit code {result.returncode}", flush=True)
+    except Exception as e:
         JOBS[plan_id] = "failed"
+        print(f"Pipeline failed for {plan_id} with exception: {e}", flush=True)
 
 
 @app.post("/api/import/pdf")
