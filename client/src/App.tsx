@@ -41,7 +41,7 @@ function App() {
   const [activePlan, setActivePlan] = useState<string | null>(null)
   const [plans, setPlans] = useState<string[]>([])
   const [loadingPlans, setLoadingPlans] = useState(true)
-  
+
   // Plan-specific states
   const [metadataResult, setMetadataResult] = useState<MetadataResult | null>(null)
   const [imageError, setImageError] = useState(false)
@@ -59,7 +59,14 @@ function App() {
   const [cropError, setCropError] = useState(false)
   const [isExporting, setIsExporting] = useState<{csv: boolean, json: boolean}>({csv: false, json: false})
 
-  const handlePlanSelection = (planId: string) => {
+  // Uploader states
+  const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState<string | null>(null) // null, 'uploading', 'processing', 'completed', 'failed', 'duplicate'
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [duplicatePlanId, setDuplicatePlanId] = useState<string | null>(null)
+
+  const handlePlanSelection = (planId: string | null) => {
     setImageError(false)
     setMetadataResult(null)
     setCandidates([])
@@ -70,8 +77,83 @@ function App() {
     setSaveSuccess(false)
     setSelectedCandidateId(null)
     setCropError(false)
+    setUploadFile(null)
+    setUploadProgress(null)
+    setUploadError(null)
     setActivePlan(planId)
   }
+
+  const handleUpload = async () => {
+    if (!uploadFile) return
+    setUploadProgress('uploading')
+    setUploadError(null)
+    setDuplicatePlanId(null)
+
+    const formData = new FormData()
+    formData.append('file', uploadFile)
+
+    try {
+      const response = await fetch('/api/import/pdf', {
+        method: 'POST',
+        body: formData,
+      })
+      if (!response.ok) {
+        const errText = await response.text()
+        throw new Error(errText || 'Upload failed')
+      }
+      const result = await response.json()
+
+      if (result.status === 'duplicate') {
+        setDuplicatePlanId(result.plan_id)
+        setUploadProgress('duplicate')
+      } else {
+        const planId = result.plan_id
+        setUploadProgress('processing')
+        pollStatus(planId)
+      }
+    } catch (err) {
+      console.error(err)
+      const error = err as Error
+      setUploadError(error.message || 'An error occurred during upload.')
+      setUploadProgress('failed')
+    }
+  }
+
+  const pollStatus = (planId: string) => {
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/status/${planId}`)
+        if (!res.ok) throw new Error('Status check failed')
+        const data = await res.json()
+
+        if (data.status === 'completed') {
+          clearInterval(interval)
+          setUploadProgress('completed')
+
+          // Refresh plans list
+          const plansRes = await fetch('/api/plans')
+          const plansData = await plansRes.json()
+          if (plansData.plans) {
+            setPlans(plansData.plans)
+          }
+
+          // Select newly processed plan
+          setTimeout(() => {
+            setActivePlan(planId)
+            setUploadFile(null)
+            setUploadProgress(null)
+          }, 1500)
+        } else if (data.status === 'failed') {
+          clearInterval(interval)
+          setUploadProgress('failed')
+          setUploadError('Pipeline execution failed on backend.')
+        }
+      } catch (err) {
+        console.error(err)
+      }
+    }, 2500)
+  }
+
 
   // Fetch available plans on mount
   useEffect(() => {
@@ -92,7 +174,7 @@ function App() {
   // Fetch metadata, candidates and status when activePlan changes
   useEffect(() => {
     if (!activePlan) return
-    
+
     // 1. Fetch metadata
     fetch(`/api/metadata/${activePlan}`)
       .then(res => {
@@ -204,7 +286,7 @@ function App() {
         body: JSON.stringify(candidates),
       })
       if (!response.ok) throw new Error("Export failed")
-      
+
       const blob = await response.blob()
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -214,12 +296,12 @@ function App() {
       a.click()
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
-      
+
       // Refresh status to update UI flags
       fetch(`/api/status/${activePlan}`)
         .then(res => res.ok ? res.json() : null)
         .then(data => { if (data) setPipelineStatus(data) })
-          
+
     } catch (error) {
       console.error(`Export ${type} error:`, error)
     } finally {
@@ -228,7 +310,7 @@ function App() {
   }
 
   const handleCellChange = (id: string, field: EditableCandidateField, value: EditableCandidateValue) => {
-    setCandidates(prev => 
+    setCandidates(prev =>
       prev.map(c => c.candidate_id === id ? { ...c, [field]: value } : c)
     )
   }
@@ -240,7 +322,7 @@ function App() {
 
   const selectedCandidate = candidates.find(c => c.candidate_id === selectedCandidateId)
   const metadata = metadataResult?.kind === 'available' ? metadataResult.metadata : null
-  
+
   // Helper to extract filename from crop_path
   const getCropFilename = (path: string | null) => {
     if (!path) return null;
@@ -260,6 +342,132 @@ function App() {
     />
   )
 
+  const renderUploadContent = () => {
+    switch (uploadProgress) {
+      case 'uploading':
+      case 'processing':
+        return (
+          <div className="flex flex-col items-center justify-center p-8">
+            <Loader2 className="w-16 h-16 animate-spin text-[#FE0000] mb-6" />
+            <h3 className="text-xl font-bold mb-2 text-foreground">
+              {uploadProgress === 'uploading' ? 'Uploading PDF File...' : 'Processing Plan Pipeline...'}
+            </h3>
+            <p className="text-sm text-muted-foreground max-w-sm">
+              We are rendering the PDF, running Tesseract OCR, and extracting candidate coordinate geometry. This may take up to a minute.
+            </p>
+          </div>
+        );
+      case 'completed':
+        return (
+          <div className="flex flex-col items-center justify-center p-8">
+            <CheckCircle2 className="w-16 h-16 text-green-500 mb-4 animate-pulse" />
+            <h3 className="text-xl font-bold mb-2">Processing Complete!</h3>
+            <p className="text-sm text-muted-foreground">Opening plan dashboard...</p>
+          </div>
+        );
+      case 'duplicate':
+        return (
+          <div className="flex flex-col items-center justify-center p-8 space-y-6">
+            <AlertCircle className="w-16 h-16 text-amber-500 animate-bounce" />
+            <div>
+              <h3 className="text-xl font-bold mb-2 text-foreground">Duplicate Plan Detected</h3>
+              <p className="text-sm text-muted-foreground">
+                This document has already been processed as plan ID: <strong>{duplicatePlanId}</strong>.
+              </p>
+            </div>
+            <div className="flex gap-4 justify-center">
+              <button
+                onClick={() => {
+                  if (duplicatePlanId) {
+                    handlePlanSelection(duplicatePlanId);
+                  }
+                }}
+                className="px-6 py-2.5 rounded-lg bg-[#FE0000] text-white font-semibold hover:bg-[#FE0000]/95 transition-all shadow-sm"
+              >
+                View Existing Plan
+              </button>
+              <button
+                onClick={() => {
+                  setUploadFile(null);
+                  setUploadProgress(null);
+                }}
+                className="px-6 py-2.5 rounded-lg border border-border bg-transparent hover:bg-muted font-semibold transition-all"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        );
+      case 'failed':
+        return (
+          <div className="flex flex-col items-center justify-center p-8 space-y-6">
+            <AlertCircle className="w-16 h-16 text-[#FE0000]" />
+            <div>
+              <h3 className="text-xl font-bold text-[#FE0000] mb-2">Processing Failed</h3>
+              <p className="text-sm text-muted-foreground max-w-sm">
+                {uploadError || 'An error occurred during pipeline execution.'}
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setUploadFile(null);
+                setUploadProgress(null);
+              }}
+              className="px-6 py-2.5 rounded-lg bg-[#FE0000] text-white font-semibold hover:bg-[#FE0000]/95 transition-all shadow-sm"
+            >
+              Try Again
+            </button>
+          </div>
+        );
+      default:
+        return (
+          <div
+            onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setIsDragging(false);
+              if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                const file = e.dataTransfer.files[0];
+                if (file.name.toLowerCase().endsWith('.pdf')) {
+                  setUploadFile(file);
+                  setUploadError(null);
+                } else {
+                  setUploadError('Only PDF files are supported.');
+                }
+              }
+            }}
+            className={`flex flex-col items-center justify-center cursor-pointer p-8 rounded-xl transition-colors ${
+              isDragging ? 'bg-primary/5 border-primary' : 'hover:bg-muted/50'
+            }`}
+          >
+            <Download className={`w-16 h-16 mb-4 ${isDragging ? 'text-primary animate-bounce' : 'text-muted-foreground'}`} />
+            <h3 className="text-lg font-bold mb-2">Drag & Drop your Plan PDF here</h3>
+            <p className="text-sm text-muted-foreground mb-6">or click to browse your files (PDF format only, max 50MB)</p>
+
+            <input
+              type="file"
+              accept=".pdf"
+              id="pdf-upload-file"
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files && e.target.files[0]) {
+                  setUploadFile(e.target.files[0]);
+                  setUploadError(null);
+                }
+              }}
+            />
+            <label
+              htmlFor="pdf-upload-file"
+              className="px-6 py-2.5 rounded-lg bg-[#FE0000] text-white font-semibold hover:bg-[#FE0000]/90 transition-all shadow-sm cursor-pointer animate-in fade-in"
+            >
+              Browse File
+            </label>
+          </div>
+        );
+    }
+  };
+
   const hasOverlay = pipelineStatus?.files?.overlay_image === true;
 
   return (
@@ -274,10 +482,22 @@ function App() {
             <h1 className="text-xl font-black tracking-tighter text-white">PLAN<span className="opacity-80 font-medium">FUGE</span></h1>
           </div>
         </div>
-        
+
         <div className="p-4 flex-1 overflow-y-auto">
           <h2 className="text-xs uppercase font-bold text-white/70 tracking-wider mb-4">Plan Selection</h2>
-          
+
+          <button
+            onClick={() => handlePlanSelection(null)}
+            className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-md font-semibold mb-4 transition-all duration-200 border border-dashed ${
+              activePlan === null
+                ? "bg-white text-[#FE0000] border-white shadow-sm"
+                : "text-white/80 border-white/20 hover:bg-white/10 hover:text-white"
+            }`}
+          >
+            <Download className="w-4 h-4" />
+            <span>Upload New PDF</span>
+          </button>
+
           {loadingPlans ? (
             <div className="animate-pulse space-y-2">
               <div className="h-10 bg-border rounded-md w-full"></div>
@@ -297,8 +517,8 @@ function App() {
                   key={plan_id}
                   onClick={() => handlePlanSelection(plan_id)}
                   className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-md font-medium transition-all duration-200 ${
-                    activePlan === plan_id 
-                      ? "bg-white text-[#FE0000] shadow-sm translate-x-1" 
+                    activePlan === plan_id
+                      ? "bg-white text-[#FE0000] shadow-sm translate-x-1"
                       : "text-white/80 hover:bg-white/10 hover:text-white"
                   }`}
                 >
@@ -309,7 +529,7 @@ function App() {
             </nav>
           )}
         </div>
-        
+
         <div className="p-4 border-t border-white/20">
           <p className="text-xs text-white/50 font-medium">Demo Mode</p>
         </div>
@@ -345,29 +565,63 @@ function App() {
         {/* Content Area - Split View */}
         <div className="flex-1 overflow-hidden">
           {!activePlan ? (
-             <div className="h-full flex items-center justify-center p-8">
-               <div className="max-w-md w-full rounded-xl border border-dashed border-border bg-muted/50 p-12 text-center text-muted-foreground">
-                 <FileCheck className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                 <p>Please select or add a plan to view details.</p>
-               </div>
-             </div>
+            <div className="h-full flex items-center justify-center p-8 bg-muted/10 overflow-y-auto">
+              <div className="max-w-xl w-full rounded-2xl border-2 border-dashed border-border bg-card p-12 text-center shadow-lg transition-all duration-300">
+                {renderUploadContent()}
+
+                {uploadFile && uploadProgress === null && (
+                  <div className="mt-8 p-4 bg-muted/40 rounded-xl border border-border flex items-center justify-between animate-in fade-in duration-300">
+                    <div className="flex items-center gap-3 text-left">
+                      <Layers className="w-8 h-8 text-[#FE0000] shrink-0 animate-pulse" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold truncate max-w-[280px]" title={uploadFile.name}>
+                          {uploadFile.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground">{(uploadFile.size / (1024 * 1024)).toFixed(2)} MB</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={handleUpload}
+                        className="px-4 py-2 bg-[#FE0000] text-white font-semibold rounded-lg hover:bg-[#FE0000]/90 text-sm shadow-sm transition-all"
+                      >
+                        Process PDF
+                      </button>
+                      <button
+                        onClick={() => setUploadFile(null)}
+                        className="px-4 py-2 border border-border bg-transparent hover:bg-muted text-sm font-semibold rounded-lg transition-all"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {uploadError && uploadProgress === null && (
+                  <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 text-red-600 rounded-lg text-sm flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{uploadError}</span>
+                  </div>
+                )}
+              </div>
+            </div>
           ) : (
             <div className="h-full flex flex-col lg:flex-row divide-y lg:divide-y-0 lg:divide-x divide-border">
-              
+
               {/* Left Column: Plan Image Viewer & Candidate Table */}
               <div className="flex-1 flex flex-col min-h-0 bg-muted/20 relative animate-in fade-in duration-500">
-                
+
                 {/* Top Half: Plan Image Viewer */}
                 <div className="flex-[3] relative border-b border-border overflow-auto flex items-start justify-center p-6 bg-muted/10">
-                  
+
                   {/* Floating Toggle Switch */}
                   {hasOverlay && (
                     <div className="absolute top-4 right-4 z-20 bg-background/90 backdrop-blur-md p-1.5 rounded-full border border-border shadow-md flex items-center space-x-1">
                       <button
                         onClick={() => setShowOverlay(false)}
                         className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                          !showOverlay 
-                            ? 'bg-primary text-primary-foreground shadow-sm' 
+                          !showOverlay
+                            ? 'bg-primary text-primary-foreground shadow-sm'
                             : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                         }`}
                       >
@@ -376,8 +630,8 @@ function App() {
                       <button
                         onClick={() => setShowOverlay(true)}
                         className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors flex items-center gap-1.5 ${
-                          showOverlay 
-                            ? 'bg-primary text-primary-foreground shadow-sm' 
+                          showOverlay
+                            ? 'bg-primary text-primary-foreground shadow-sm'
                             : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                         }`}
                       >
@@ -397,8 +651,8 @@ function App() {
                     </div>
                   ) : (
                     <div className="relative rounded-lg overflow-hidden border border-border shadow-md bg-white max-w-full">
-                      <img 
-                        src={showOverlay ? `/api/images/overlays/${activePlan}` : `/api/images/pages/${activePlan}`} 
+                      <img
+                        src={showOverlay ? `/api/images/overlays/${activePlan}` : `/api/images/pages/${activePlan}`}
                         alt={`Plan ${activePlan} ${showOverlay ? 'Overlay' : ''}`}
                         className="max-w-full h-auto object-contain block"
                         onError={() => setImageError(true)}
@@ -425,7 +679,7 @@ function App() {
                       <p className="text-xs text-muted-foreground">Click a row to view crop preview.</p>
                     </div>
                   </div>
-                  
+
                   <div className="flex-1 overflow-auto p-0">
                     {loadingCandidates ? (
                       <div className="flex items-center justify-center h-full text-muted-foreground">
@@ -456,8 +710,8 @@ function App() {
                           </thead>
                           <tbody className="divide-y divide-border bg-card">
                             {candidates.map((c) => (
-                              <tr 
-                                key={c.candidate_id} 
+                              <tr
+                                key={c.candidate_id}
                                 onClick={() => handleCandidateSelection(c.candidate_id)}
                                 className={`transition-colors cursor-pointer ${selectedCandidateId === c.candidate_id ? 'bg-primary/10 hover:bg-primary/20' : 'hover:bg-muted/30'}`}
                               >
@@ -465,8 +719,8 @@ function App() {
                                   {c.candidate_id}
                                 </td>
                                 <td className="px-2 py-2 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                                  <select 
-                                    value={c.status || 'needs_review'} 
+                                  <select
+                                    value={c.status || 'needs_review'}
                                     onChange={(e) => handleCellChange(c.candidate_id, 'status', e.target.value)}
                                     className={`text-xs px-2 py-1 rounded border-none font-medium focus:ring-1 focus:ring-primary ${
                                       c.status === 'verified' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
@@ -503,7 +757,7 @@ function App() {
 
               {/* Right Column: Status & Actions (Fixed width on desktop) */}
               <div className="w-full lg:w-96 shrink-0 overflow-y-auto p-6 bg-background space-y-6">
-                
+
                 {/* Crop Preview Panel */}
                 <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
                   <h4 className="text-base font-semibold mb-4 flex items-center gap-2">
@@ -529,7 +783,7 @@ function App() {
                         </div>
                       ) : (
                         <div className="border border-border rounded-lg overflow-hidden bg-white flex items-center justify-center min-h-[128px] p-2">
-                          <img 
+                          <img
                             src={`/api/images/crops/${getCropFilename(selectedCandidate.crop_path)}`}
                             alt="Crop Preview"
                             className="max-w-full max-h-48 object-contain"
@@ -537,7 +791,7 @@ function App() {
                           />
                         </div>
                       )}
-                      
+
                       {/* Parsed Data Details */}
                       <div className="bg-muted/30 rounded-lg p-3 space-y-2 border border-border">
                         <div className="flex justify-between items-center border-b border-border/50 pb-2 mb-2">
@@ -558,9 +812,9 @@ function App() {
                           <div>
                             <span className="block text-muted-foreground mb-0.5">Dimensions (mm)</span>
                             <span className="font-medium">
-                              {selectedCandidate.width_mm && selectedCandidate.height_mm 
+                              {selectedCandidate.width_mm && selectedCandidate.height_mm
                                 ? `${selectedCandidate.width_mm}x${selectedCandidate.height_mm}`
-                                : selectedCandidate.diameter_mm 
+                                : selectedCandidate.diameter_mm
                                 ? `Ø${selectedCandidate.diameter_mm}`
                                 : '-'}
                             </span>
@@ -624,7 +878,7 @@ function App() {
                 <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
                   <h4 className="text-base font-semibold mb-4">Quick Actions</h4>
                   <div className="grid grid-cols-2 gap-3">
-                    <button 
+                    <button
                       onClick={handleSave}
                       disabled={isSaving || candidates.length === 0 || !canSaveCandidates(candidateSource)}
                       className="col-span-2 flex items-center justify-center gap-2 p-3 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm font-medium"
@@ -638,7 +892,7 @@ function App() {
                       )}
                       <span>{candidateSource === 'sample' ? 'Sample data is not saved' : isSaving ? 'Saving...' : saveSuccess ? 'Saved!' : 'Review Detections'}</span>
                     </button>
-                    <button 
+                    <button
                       onClick={() => handleExport('csv')}
                       disabled={isExporting.csv || candidates.length === 0}
                       className="flex flex-col items-center justify-center p-3 rounded-lg border border-border bg-muted/30 hover:bg-primary/5 hover:border-primary/20 transition-all group disabled:opacity-50 disabled:cursor-not-allowed"
@@ -650,7 +904,7 @@ function App() {
                       )}
                       <span className="text-xs font-medium text-foreground">{isExporting.csv ? 'Exporting...' : 'Export CSV'}</span>
                     </button>
-                    <button 
+                    <button
                       onClick={() => handleExport('json')}
                       disabled={isExporting.json || candidates.length === 0}
                       className="flex flex-col items-center justify-center p-3 rounded-lg border border-border bg-muted/30 hover:bg-primary/5 hover:border-primary/20 transition-all group disabled:opacity-50 disabled:cursor-not-allowed"
@@ -661,6 +915,14 @@ function App() {
                         <FileJson className="w-5 h-5 mb-1 text-muted-foreground group-hover:text-primary transition-colors" />
                       )}
                       <span className="text-xs font-medium text-foreground">{isExporting.json ? 'Exporting...' : 'Export JSON'}</span>
+                    </button>
+                    <button
+                      onClick={() => window.open(`/api/downloads/csv/${activePlan}`, '_blank')}
+                      disabled={candidates.length === 0}
+                      className="col-span-2 flex items-center justify-center gap-2 p-2.5 rounded-lg border border-border bg-muted/20 hover:bg-primary/5 hover:border-primary/25 transition-all text-xs font-semibold disabled:opacity-50"
+                    >
+                      <Download className="w-4 h-4 text-muted-foreground" />
+                      <span>Download Pipeline CSV</span>
                     </button>
                   </div>
                 </div>

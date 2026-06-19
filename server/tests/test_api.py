@@ -3,6 +3,7 @@ import io
 import json
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 from fastapi import HTTPException
@@ -440,7 +441,7 @@ class ApiTests(unittest.TestCase):
     def test_pipeline_status_endpoint_returns_flags(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            
+
             # Create one dummy file to test partial true state
             (root / "outputs" / "crops").mkdir(parents=True)
 
@@ -471,7 +472,7 @@ class ApiTests(unittest.TestCase):
             root = Path(temp_dir)
             pages_dir = root / "data" / "pages"
             pages_dir.mkdir(parents=True)
-            
+
             # Create a dummy image
             dummy_image = pages_dir / "SP_U1_0001.png"
             dummy_image.write_bytes(b"dummy_png_bytes")
@@ -488,7 +489,7 @@ class ApiTests(unittest.TestCase):
             root = Path(temp_dir)
             crops_dir = root / "outputs" / "crops"
             crops_dir.mkdir(parents=True)
-            
+
             # Create a dummy crop image
             dummy_image = crops_dir / "SP_U1_0001_crop1.png"
             dummy_image.write_bytes(b"dummy_crop_bytes")
@@ -505,7 +506,7 @@ class ApiTests(unittest.TestCase):
             root = Path(temp_dir)
             overlays_dir = root / "outputs" / "overlays"
             overlays_dir.mkdir(parents=True)
-            
+
             # Create a dummy overlay image
             dummy_image = overlays_dir / "SP_U1_0001_overlay.png"
             dummy_image.write_bytes(b"dummy_overlay_bytes")
@@ -516,6 +517,121 @@ class ApiTests(unittest.TestCase):
             with self.assertRaises(HTTPException) as missing:
                 get_overlay_image("MISSING")
             self.assertEqual(missing.exception.status_code, 404)
+
+    def test_import_pdf_rejects_non_pdf(self) -> None:
+        from fastapi.testclient import TestClient
+        client = TestClient(app)
+        response = client.post(
+            "/api/import/pdf",
+            files={"file": ("test.txt", b"plain text", "text/plain")}
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"], "Only PDF files are accepted.")
+
+    def test_import_pdf_duplicate_hash(self) -> None:
+        import hashlib
+        from fastapi.testclient import TestClient
+
+        pdf_content = b"%PDF-1.4 dummy pdf content"
+        pdf_hash = hashlib.sha256(pdf_content).hexdigest()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            # Create a mock metadata file with duplicate hash
+            metadata_dir = root / "data" / "metadata"
+            metadata_dir.mkdir(parents=True)
+            metadata_file = metadata_dir / "SP_U1_0001_metadata.json"
+            metadata_file.write_text(json.dumps({
+                "plan_id": "SP_U1_0001",
+                "pdf_hash": pdf_hash
+            }))
+
+            app.state.project_root = root
+            client = TestClient(app)
+            response = client.post(
+                "/api/import/pdf",
+                files={"file": ("new_plan.pdf", pdf_content, "application/pdf")}
+            )
+            self.assertEqual(response.status_code, 200)
+            data = response.json()
+            self.assertEqual(data["status"], "duplicate")
+            self.assertEqual(data["plan_id"], "SP_U1_0001")
+
+    @unittest.mock.patch("subprocess.run")
+    def test_import_pdf_async_and_status(self, mock_run) -> None:
+        import unittest.mock
+        from fastapi.testclient import TestClient
+
+        pdf_content = b"%PDF-1.4 dummy pdf content for async"
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+
+            def mock_subprocess(*args, **kwargs):
+                from server.app.api import JOBS
+                self.assertEqual(JOBS.get("async_plan"), "processing")
+
+                # Mock create outputs
+                png_dir = root / "outputs" / "rendered"
+                png_dir.mkdir(parents=True, exist_ok=True)
+                (png_dir / "async_plan.png").touch()
+
+                cand_dir = root / "outputs" / "candidates"
+                cand_dir.mkdir(parents=True, exist_ok=True)
+                (cand_dir / "async_plan_candidates.json").touch()
+
+                res = unittest.mock.MagicMock()
+                res.returncode = 0
+                return res
+
+            mock_run.side_effect = mock_subprocess
+
+            app.state.project_root = root
+            client = TestClient(app)
+            response = client.post(
+                "/api/import/pdf",
+                files={"file": ("async_plan.pdf", pdf_content, "application/pdf")}
+            )
+            self.assertEqual(response.status_code, 200)
+            data = response.json()
+            self.assertEqual(data["status"], "processing")
+            self.assertEqual(data["plan_id"], "async_plan")
+
+            # Since TestClient runs BackgroundTasks synchronously, it should be completed now
+            status_response = client.get("/api/status/async_plan")
+            self.assertEqual(status_response.status_code, 200)
+            self.assertEqual(status_response.json()["status"], "completed")
+
+            # Verify that Phase 4 logic copied outputs/rendered/async_plan.png to data/pages/async_plan.png
+            copied_png = root / "data" / "pages" / "async_plan.png"
+            self.assertTrue(copied_png.is_file())
+
+    def test_download_pipeline_csv(self) -> None:
+        from fastapi.testclient import TestClient
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            csv_dir = root / "outputs" / "contract_exports"
+            csv_dir.mkdir(parents=True)
+            csv_file = csv_dir / "SP_U1_0001_contract.csv"
+            csv_file.write_text("Floor,Quantity\nU1,5", encoding="utf-8")
+
+            app.state.project_root = root
+            client = TestClient(app)
+            response = client.get("/api/downloads/csv/SP_U1_0001")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.text, "Floor,Quantity\nU1,5")
+            self.assertEqual(response.headers["content-type"], "text/csv; charset=utf-8")
+
+
+            # Missing CSV returns 404
+            response_missing = client.get("/api/downloads/csv/MISSING")
+            self.assertEqual(response_missing.status_code, 404)
+
+
+
+
+
 
 
 if __name__ == "__main__":
