@@ -12,6 +12,8 @@ __pycache__/
 .cursor
 .claud
 .codex
+/AGENTS.md
+/skills/
 
 # Generated / heavy PlanFuge files
 outputs/
@@ -20,4 +22,3 @@ data/pages/
 data/ocr_benchmark/crops/
 __pycache__/
 .pytest_cache/
-
