@@ -1,4 +1,4 @@
-# PlanFuge (Fork)
+# PlanFuge
 
 This repository is a fork of [beyzabetulay/planfuge](https://github.com/beyzabetulay/planfuge) containing enhancements, test suites, and CI/CD pipelines developed on top of the original prototype built for the **Riedel Bau Hackathon Challenge**.
 
@@ -6,22 +6,32 @@ PlanFuge supports the extraction, review, and export of ceiling recesses and sla
 
 ---
 
-## Fork Improvements & Contributions
+## Key Capabilities
 
-The following features and quality-of-life enhancements were implemented in this fork:
+The current application includes:
 
-- **Visual Bounding Box Overlay Pipeline:** Implemented [overlay_drawer.py](file:///home/yusufkaratas/Documents/planfuge/planfuge/src/candidates/overlay_drawer.py) to dynamically draw status-coded bounding box rectangles (Blue for `verified`, Red for `needs_review`) and candidate ID labels directly on blueprint drawings with proportional line width scaling and system fallback fonts.
-- **Pipeline Integration & Clean Teardown:** Integrated the overlay drawing step into [run_pipeline_on_pdfs.py](file:///home/yusufkaratas/Documents/planfuge/planfuge/scripts/run_pipeline_on_pdfs.py) to trigger automatically post-extraction, with fail-safe deletion of partial images on failure.
-- **Comprehensive Test Suites:** Added new unit tests (`tests/test_overlay_drawer.py`) and FastAPI endpoints/integration tests (`server/tests/test_api.py`) to verify the pipeline state and image loading, with all 120+ tests passing.
+- **PDF-to-candidate pipeline:** Upload a construction plan, render its first page, detect annotated regions, run OCR, parse opening dimensions, and create review candidates.
+- **Interactive candidate bounding boxes:** Review candidates directly on the original plan through a responsive SVG layer. Hover or focus a box to see its ID and status, click it to select the matching table row, or click a row to pulse its plan location. Interactive colors are green for `verified`, red for `needs_review`, and yellow for other states.
+- **Generated evidence overlay:** [overlay_drawer.py](src/candidates/overlay_drawer.py) produces a static status-coded PNG after extraction. [run_pipeline_on_pdfs.py](scripts/run_pipeline_on_pdfs.py) integrates this step and removes partial output after a failure.
+- **Human-in-the-loop review:** Edit extracted values and statuses, inspect candidate crops, save review drafts, and export CSV or JSON contract data.
+- **Dark mode:** Switch between light and dark themes from the header. The preference is persisted in `localStorage` and defaults to the operating-system preference on first use.
 - **Onboarding & Clean Slate Setup:** Cleared all tracked sample PDF/PNG outputs from Git, redesigned the empty-state frontend dashboard into a user onboarding UI, and updated `.gitignore` rules for production standards.
-- **CI/CD Integration:** Set up a [ci.yml](file:///home/yusufkaratas/Documents/planfuge/planfuge/.github/workflows/ci.yml) pipeline using GitHub Actions to automatically run backend unit tests, frontend linters, and frontend build validations.
-- **Pre-Commit Hooks:** Added `.pre-commit-config.yaml` and `pyproject.toml` to enforce code quality gates (black, ruff, mypy, prettier, eslint, tsc) automatically on every `git commit`.
+- **Automated quality gates:** [ci.yml](.github/workflows/ci.yml) runs Python tests, frontend tests, linting, type checking, and the production build for pull requests targeting `master`.
+- **Draft releases:** [release.yml](.github/workflows/release.yml) validates `v*` tags, packages the frontend build, and creates a GitHub draft release with generated notes.
+- **Pre-commit hooks:** `.pre-commit-config.yaml` runs Black, Ruff, Prettier, ESLint, and TypeScript checks before each commit.
 
 ---
 
-## Development Setup
+## Development Prerequisites
 
-After cloning, install the pre-commit hooks once:
+- Python 3.11 or newer
+- Node.js 22 and npm
+- Tesseract OCR with English and German language data
+- Docker with Compose support for the recommended container workflow
+
+## Pre-Commit Setup
+
+After installing the backend and frontend dependencies, install the pre-commit hooks once:
 
 ```bash
 pip install pre-commit
@@ -34,10 +44,9 @@ From that point on, every `git commit` will automatically run:
 | -------------- | ------------------------------------------------------- |
 | `black`        | Python formatting (auto-fixes)                          |
 | `ruff`         | Python linting & unused imports (auto-fixes)            |
-| `mypy`         | Python type checking                                    |
 | `prettier`     | TypeScript/JS/CSS/JSON/Markdown formatting (auto-fixes) |
 | `eslint`       | TypeScript/React lint rules                             |
-| `tsc --noEmit` | TypeScript compilation errors                           |
+| `tsc --noEmit` | TypeScript type checking                                |
 
 To run all hooks manually on the full codebase:
 
@@ -86,16 +95,18 @@ graph TD
     D --> E[Crop Candidate Regions]
     E --> F[Run Tesseract OCR & PDF Word Fallback]
     F --> G[Parse Dimensions & Save Candidates JSON]
-    G --> H[Draw Visual Bounding Box Overlay PNG]
-    H --> I[Dashboard UI Review & CSV/JSON Export]
+    G --> H[Draw Static Evidence Overlay PNG]
+    H --> I[Review Candidates with Interactive SVG Boxes]
+    I --> J[Save Draft and Export CSV/JSON]
 ```
 
 1. **PDF Import:** PDFs uploaded to `/api/import/pdf` are stored in `data/imports/`.
 2. **Page Rendering:** PyMuPDF renders the first page of the PDF into a 300 DPI high-resolution PNG in `outputs/rendered/`.
 3. **Auto-Configuration:** Analyzes grid coordinates and scale text to populate the plan metadata config in `data/config/`.
 4. **Computer Vision & OCR:** Extracts coordinates from red-highlighted areas on the drawing, crops those areas, and extracts bounding-box text using Tesseract OCR.
-5. **Pillow Overlay Drawer:** Reads the candidate list, scales the stroke line thickness proportionally to the dimensions, draws hollow status-colored rectangles (Red/Blue), writes text labels, and saves the final PNG to `outputs/overlays/`.
-6. **Dashboard Interaction:** Serves the overlay at `/api/images/overlays/{plan_id}` when the reviewer checks "Show Overlay", enabling cross-referencing between bounding box markers and tabular calculations.
+5. **Static Evidence Overlay:** Reads the candidate list, draws proportional red/blue rectangles and candidate labels, and saves the generated PNG to `outputs/overlays/`.
+6. **Interactive Review:** Renders candidate geometry as an SVG layer over the original image. Plan-box and table-row selection stay synchronized, while the Original/Overlay switch provides access to the generated evidence image.
+7. **Draft and Export:** Saves reviewer edits and produces downloadable CSV or JSON contract data.
 
 ---
 
@@ -153,7 +164,7 @@ uvicorn server.app.api:app --host 127.0.0.1 --port 8000 --reload
 
 ```bash
 cd client
-npm install
+npm ci
 npm run dev
 ```
 
@@ -165,19 +176,26 @@ Open [http://localhost:5173](http://localhost:5173). The Vite dev server will pr
 
 ### Python Tests (Backend & Pipeline)
 
-Run all 120+ backend unit and integration tests from the project root:
+Run the backend and pipeline test suites from the project root:
 
 ```bash
 python3 -m unittest discover -s server/tests
 python3 -m unittest discover -s tests
 ```
 
-### Frontend Tests (React)
+### Frontend Checks
 
-Run frontend unit and lint checks:
+Run frontend tests, linting, type checking, and the production build:
 
 ```bash
 cd client
-npm run lint
 npm run test
+npm run lint
+npm run build
+```
+
+Run the same pre-commit quality gates used by CI:
+
+```bash
+pre-commit run --all-files
 ```
