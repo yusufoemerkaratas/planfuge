@@ -59,7 +59,9 @@ def refine_bbox_to_nearby_lines(
         row for row in range(dark.shape[0]) if _longest_true_run(dark[row, :]) >= min_line_length
     ]
     vertical_lines = [
-        column for column in range(dark.shape[1]) if _longest_true_run(dark[:, column]) >= min_line_length
+        column
+        for column in range(dark.shape[1])
+        if _longest_true_run(dark[:, column]) >= min_line_length
     ]
     horizontal_sides = _nearest_sides(horizontal_lines, mask_y0 + height / 2)
     vertical_sides = _nearest_sides(vertical_lines, mask_x0 + width / 2)

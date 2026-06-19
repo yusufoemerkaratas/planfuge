@@ -24,7 +24,7 @@ Remove all pre-loaded PDF imports, page images, metadata files, searchable-PDF w
   - `data/words/`
   - `outputs/candidates/`
   - `outputs/contract_exports/`
-  Keep these directories in git using empty `.gitkeep` files.
+    Keep these directories in git using empty `.gitkeep` files.
 - **Git Ignore Configurations:** Update the project `.gitignore` rules to ensure any newly uploaded plans and their generated metadata, crops, and candidates are ignored by Git and never committed.
 - **Onboarding UI:** Update the React sidebar empty state to display a clear onboarding prompt ("Upload New PDF") rather than instructing developers to manually add files to folders.
 - **Bootstrapping Script Adjustment:** Modify `scripts/bootstrap_candidates.py` to skip mock generation if no plan files are present, preventing pre-processed files from appearing on fresh installations.

@@ -1,9 +1,12 @@
 import json
 from pathlib import Path
+
 from PIL import Image, ImageDraw, ImageFont
 
 
-def draw_candidates_overlay(image_path: Path | str, candidates_path: Path | str, output_path: Path | str) -> None:
+def draw_candidates_overlay(
+    image_path: Path | str, candidates_path: Path | str, output_path: Path | str
+) -> None:
     """Draw bounding boxes and status labels on the high-resolution plan image.
 
     - Verification and Review boxes are color-coded (Blue for verified, Red for needs_review).
@@ -17,7 +20,7 @@ def draw_candidates_overlay(image_path: Path | str, candidates_path: Path | str,
     # 1. Load candidates safely
     candidates = []
     if candidates_path.is_file():
-        with open(candidates_path, "r", encoding="utf-8") as f:
+        with open(candidates_path, encoding="utf-8") as f:
             try:
                 data = json.load(f)
                 if isinstance(data, dict):

@@ -68,9 +68,7 @@ def extract_candidates_from_words(words: list[dict[str, Any]]) -> list[dict[str,
             continue
 
         used_word_ids.update(block_indices)
-        candidates.append(
-            _candidate_from_block(len(candidates) + 1, raw_text, block_words, parsed)
-        )
+        candidates.append(_candidate_from_block(len(candidates) + 1, raw_text, block_words, parsed))
 
     return candidates
 

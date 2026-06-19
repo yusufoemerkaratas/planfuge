@@ -147,21 +147,23 @@ def _build_rows(project_root: Path, plan_id: str, candidates: list[dict]) -> lis
         o_type = _opening_type(c.get("label_type"))
         center = _candidate_center(c)
 
-        openings.append({
-            "floor": floor,
-            "plan_name": plan_id,
-            "length_cm": length_cm,
-            "width_cm": width_cm,
-            "height_cm": height_cm,
-            "geometry": geometry,
-            "opening_type": o_type,
-            "center": center,
-            "review_required": (
-                c.get("status") != "verified"
-                or uses_default_height
-                or c.get("confidence", 0.5) < 0.60
-            ),
-        })
+        openings.append(
+            {
+                "floor": floor,
+                "plan_name": plan_id,
+                "length_cm": length_cm,
+                "width_cm": width_cm,
+                "height_cm": height_cm,
+                "geometry": geometry,
+                "opening_type": o_type,
+                "center": center,
+                "review_required": (
+                    c.get("status") != "verified"
+                    or uses_default_height
+                    or c.get("confidence", 0.5) < 0.60
+                ),
+            }
+        )
 
     groups: list[dict] = []
     for o in openings:
@@ -177,7 +179,9 @@ def _build_rows(project_root: Path, plan_id: str, candidates: list[dict]) -> lis
 
     rows = []
     for group in groups:
-        floor, plan_name, length_cm, width_cm, height_cm, geometry, o_type, review_required = group["key"]
+        floor, plan_name, length_cm, width_cm, height_cm, geometry, o_type, review_required = group[
+            "key"
+        ]
         count = group["count"]
         vol = _volume_cm3(geometry, length_cm, width_cm, height_cm)
         weight_kg = round(vol / 1_000_000 * DENSITY_KG_M3 * count, 1)
@@ -187,18 +191,20 @@ def _build_rows(project_root: Path, plan_id: str, candidates: list[dict]) -> lis
             status = "review_required"
         else:
             status = "ready"
-        rows.append({
-            "Floor": floor,
-            "Construction phase/Plan name": plan_name,
-            "Length/cm": length_cm,
-            "Width/cm": width_cm,
-            "Height/cm": height_cm,
-            "Geometry": geometry,
-            "Type": o_type,
-            "Number": count,
-            "Weight/kg": weight_kg,
-            "Review status": status,
-        })
+        rows.append(
+            {
+                "Floor": floor,
+                "Construction phase/Plan name": plan_name,
+                "Length/cm": length_cm,
+                "Width/cm": width_cm,
+                "Height/cm": height_cm,
+                "Geometry": geometry,
+                "Type": o_type,
+                "Number": count,
+                "Weight/kg": weight_kg,
+                "Review status": status,
+            }
+        )
 
     return rows
 

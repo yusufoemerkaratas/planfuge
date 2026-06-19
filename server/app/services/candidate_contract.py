@@ -1,7 +1,6 @@
 from dataclasses import dataclass, field
 from typing import Any
 
-
 REQUIRED_CANDIDATE_FIELDS = ("candidate_id", "source", "bbox_image", "status")
 
 OPTIONAL_CANDIDATE_FIELDS = (

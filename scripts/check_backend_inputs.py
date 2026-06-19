@@ -29,13 +29,17 @@ class InputCheckResult:
 
     @property
     def exit_code(self) -> int:
-        has_missing_required_file = any(check.required and not check.exists for check in self.checks)
+        has_missing_required_file = any(
+            check.required and not check.exists for check in self.checks
+        )
         return 1 if has_missing_required_file else 0
 
 
 def check_backend_inputs(project_root: Path, plan_id: str) -> InputCheckResult:
     checks = [
-        build_check(project_root, Path(f"data/pages/{plan_id}.png"), True, "rendered plan image", "file"),
+        build_check(
+            project_root, Path(f"data/pages/{plan_id}.png"), True, "rendered plan image", "file"
+        ),
         build_check(
             project_root,
             Path(f"data/metadata/{plan_id}_metadata.json"),

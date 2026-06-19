@@ -8,6 +8,7 @@ from typing import Any
 
 import numpy as np
 from PIL import Image
+
 Image.MAX_IMAGE_PIXELS = None
 
 
@@ -72,7 +73,6 @@ def _red_hsv_mask_optimized(rgb: np.ndarray) -> np.ndarray:
     return mask
 
 
-
 def _dilate(mask: np.ndarray, iterations: int) -> np.ndarray:
     result = mask
     for _ in range(iterations):
@@ -107,7 +107,11 @@ def _regions_from_mask(
                 continue
 
             component = _collect_component(mask, visited, x, y)
-            region = _tighten_region_to_mask(component, bbox_mask) if bbox_mask is not None else component
+            region = (
+                _tighten_region_to_mask(component, bbox_mask)
+                if bbox_mask is not None
+                else component
+            )
             if region["area_px"] < min_area_px:
                 continue
 

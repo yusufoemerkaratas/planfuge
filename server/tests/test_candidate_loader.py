@@ -1,5 +1,5 @@
-import tempfile
 import json
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -35,7 +35,6 @@ class CandidateLoaderTests(unittest.TestCase):
         self.assertEqual(result.errors, [])
         self.assertEqual(result.source, "file")
 
-
     def test_missing_file_returns_warning_and_empty_candidates(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -48,7 +47,6 @@ class CandidateLoaderTests(unittest.TestCase):
         self.assertEqual(result.source, "empty")
         self.assertTrue(any("not found" in w for w in result.warnings))
         self.assertEqual(result.errors, [])
-
 
     def test_malformed_json_returns_error_and_empty_candidates(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -64,7 +62,6 @@ class CandidateLoaderTests(unittest.TestCase):
         self.assertEqual(result.candidate_count, 0)
         self.assertEqual(result.candidates, [])
         self.assertTrue(any("failed to read" in e for e in result.errors))
-
 
     def test_invalid_candidates_propagate_validation_errors(self) -> None:
         payload = {

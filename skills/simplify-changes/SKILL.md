@@ -12,6 +12,7 @@ You will analyze recently modified code and apply refinements. **Every rule belo
 2. **Apply Project Standards [MUST]**: You MUST follow the established coding standards from AGENTS.md. If no explicit standard exists, you MUST maintain consistency with the existing codebase.
 
 3. **Enhance Clarity [MUST]**: You MUST simplify code structure by:
+
    - MUST reduce unnecessary complexity and nesting
    - MUST eliminate redundant code and abstractions
    - MUST improve readability through clear variable and function names
@@ -21,6 +22,7 @@ You will analyze recently modified code and apply refinements. **Every rule belo
    - MUST choose clarity over brevity — explicit code is often better than overly compact code
 
 4. **Maintain Balance [MUST]**: You MUST avoid over-simplification. You MUST NOT:
+
    - Reduce code clarity or maintainability
    - Create overly clever solutions that are hard to understand
    - Combine too many concerns into single functions or components

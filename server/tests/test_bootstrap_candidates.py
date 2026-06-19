@@ -12,16 +12,20 @@ class BootstrapCandidatesTests(unittest.TestCase):
             root = Path(temp_dir)
             words_dir = root / "data" / "words"
             words_dir.mkdir(parents=True)
-            (words_dir / "SP_U1_0003_words.json").write_text(json.dumps([
-                {
-                    "text": "DDB130/140",
-                    "x0": 5,
-                    "y0": 7,
-                    "x1": 80,
-                    "y1": 20,
-                    "page": 1,
-                }
-            ]))
+            (words_dir / "SP_U1_0003_words.json").write_text(
+                json.dumps(
+                    [
+                        {
+                            "text": "DDB130/140",
+                            "x0": 5,
+                            "y0": 7,
+                            "x1": 80,
+                            "y1": 20,
+                            "page": 1,
+                        }
+                    ]
+                )
+            )
 
             result = bootstrap_candidates(root)
 

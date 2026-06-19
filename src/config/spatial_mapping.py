@@ -32,10 +32,9 @@ def _point_on_segment(x: float, y: float, start: list[float], end: list[float]) 
     cross = (x - start[0]) * (end[1] - start[1]) - (y - start[1]) * (end[0] - start[0])
     if not math.isclose(cross, 0.0, abs_tol=1e-9):
         return False
-    return (
-        min(start[0], end[0]) <= x <= max(start[0], end[0])
-        and min(start[1], end[1]) <= y <= max(start[1], end[1])
-    )
+    return min(start[0], end[0]) <= x <= max(start[0], end[0]) and min(
+        start[1], end[1]
+    ) <= y <= max(start[1], end[1])
 
 
 def _point_in_polygon(x: float, y: float, polygon: list[list[float]]) -> bool:
@@ -45,7 +44,9 @@ def _point_in_polygon(x: float, y: float, polygon: list[list[float]]) -> bool:
         if _point_on_segment(x, y, previous, current):
             return True
         if (current[1] > y) != (previous[1] > y):
-            intersection_x = (previous[0] - current[0]) * (y - current[1]) / (previous[1] - current[1]) + current[0]
+            intersection_x = (previous[0] - current[0]) * (y - current[1]) / (
+                previous[1] - current[1]
+            ) + current[0]
             if x < intersection_x:
                 inside = not inside
         previous = current

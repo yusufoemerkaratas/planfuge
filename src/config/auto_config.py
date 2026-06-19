@@ -160,12 +160,12 @@ def detect_grid_from_png(
     strip_w = max(100, int((x_max - x_min) * 0.04))
 
     # ---- Column ticks from the top header strip ----
-    top_strip = arr[y_min: y_min + strip_h, content_x_min:x_max]
+    top_strip = arr[y_min : y_min + strip_h, content_x_min:x_max]
     col_positions_rel = _detect_ticks_in_strip(top_strip, axis=0, min_spacing=300)
     col_positions = [p + content_x_min for p in col_positions_rel]
 
     # ---- Row ticks from the left strip ----
-    left_strip = arr[y_min:y_max, x_min: x_min + strip_w]
+    left_strip = arr[y_min:y_max, x_min : x_min + strip_w]
     row_positions_rel = _detect_ticks_in_strip(left_strip, axis=1, min_spacing=200)
     row_positions = [p + y_min for p in row_positions_rel]
 
@@ -173,16 +173,12 @@ def detect_grid_from_png(
     if len(col_positions) < 2:
         n_cols = max(2, round((x_max - content_x_min) / 600))
         col_positions = [
-            content_x_min + int(i * (x_max - content_x_min) / n_cols)
-            for i in range(n_cols + 1)
+            content_x_min + int(i * (x_max - content_x_min) / n_cols) for i in range(n_cols + 1)
         ]
 
     if len(row_positions) < 2:
         n_rows = max(2, round((y_max - y_min) / 600))
-        row_positions = [
-            y_min + int(i * (y_max - y_min) / n_rows)
-            for i in range(n_rows + 1)
-        ]
+        row_positions = [y_min + int(i * (y_max - y_min) / n_rows) for i in range(n_rows + 1)]
 
     col_labels = _assign_labels(col_positions, use_letters=True)
     row_labels = _assign_labels(row_positions, use_letters=False)

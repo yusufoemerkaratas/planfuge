@@ -38,4 +38,3 @@ def get_review_status(opening: Opening, config: WeightConfig = WeightConfig()) -
         return STATUS_REVIEW_REQUIRED
 
     return STATUS_READY
-

@@ -7,6 +7,7 @@ The user is currently exporting opening candidate tables where grid coordinates 
 ## Solution
 
 We will enhance the Plan2Print backend and candidate extraction pipeline to support:
+
 1. Configuring grid coordinate anchors (reference points) and color zone boundaries (geometric polygons and HSV values) per plan.
 2. Automating the interpolation of candidate coordinates relative to the grid coordinate system.
 3. Automatically mapping each candidate's color zone by checking which boundary polygon its center falls into.

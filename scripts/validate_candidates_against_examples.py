@@ -39,7 +39,7 @@ def main() -> None:
     args = parser.parse_args()
 
     plan_id = args.plan_id
-    
+
     # Resolve default paths
     candidates_path = (
         Path(args.candidates_json)
@@ -55,7 +55,7 @@ def main() -> None:
     # Validate candidates file presence
     if not candidates_path.exists():
         print(f"Error: Candidates file not found: {candidates_path}", file=sys.stderr)
-        print(f"Please run scripts/extract_candidates_from_png.py first.", file=sys.stderr)
+        print("Please run scripts/extract_candidates_from_png.py first.", file=sys.stderr)
         sys.exit(1)
 
     # Validate examples file presence
@@ -66,7 +66,7 @@ def main() -> None:
 
     # Load candidates JSON
     try:
-        with open(candidates_path, "r", encoding="utf-8") as f:
+        with open(candidates_path, encoding="utf-8") as f:
             # Check if it has candidates key or is a list (fallback mode vs end-to-end list)
             data = json.load(f)
             if isinstance(data, dict) and "candidates" in data:
@@ -82,7 +82,7 @@ def main() -> None:
 
     # Load examples JSON
     try:
-        with open(examples_path, "r", encoding="utf-8") as f:
+        with open(examples_path, encoding="utf-8") as f:
             examples = json.load(f)
     except json.JSONDecodeError as jde:
         print(f"Error: Examples JSON file is malformed: {jde}", file=sys.stderr)
@@ -96,14 +96,12 @@ def main() -> None:
 
     # Compare candidates to examples
     report = compare_candidates_to_examples(
-        candidates=candidates,
-        examples=examples,
-        iou_threshold=args.iou_threshold
+        candidates=candidates, examples=examples, iou_threshold=args.iou_threshold
     )
 
     total_relevant = sum(1 for ex in examples if ex.get("is_opening_relevant", True))
     matched_relevant_count = len(report["matched_relevant"])
-    
+
     recall_rate = (matched_relevant_count / total_relevant) if total_relevant > 0 else 0.0
 
     print("\n--- Validation Quality Gate Report ---")
@@ -119,14 +117,18 @@ def main() -> None:
     for item in report["matched_relevant"]:
         text_info = ""
         if item.get("expected_text") or item.get("raw_text"):
-            text_info = f" (Expected: '{item.get('expected_text')}' | OCR: '{item.get('raw_text')}')"
+            text_info = (
+                f" (Expected: '{item.get('expected_text')}' | OCR: '{item.get('raw_text')}')"
+            )
         print(f"  {item['example_id']} matched with candidate {item['candidate_id']}{text_info}")
 
     print("\nMissed Relevant Examples:")
     if not report["missed_relevant"]:
         print("  None")
     for item in report["missed_relevant"]:
-        text_info = f" (Expected: '{item.get('expected_text')}')" if item.get("expected_text") else ""
+        text_info = (
+            f" (Expected: '{item.get('expected_text')}')" if item.get("expected_text") else ""
+        )
         print(f"  {item['example_id']}{text_info}")
 
     print("\nNon-Relevant Examples Matched:")

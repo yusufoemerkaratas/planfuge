@@ -1,7 +1,9 @@
 from typing import Any
 
 
-def compute_iou(bbox1: list[float] | tuple[float, ...], bbox2: list[float] | tuple[float, ...]) -> float:
+def compute_iou(
+    bbox1: list[float] | tuple[float, ...], bbox2: list[float] | tuple[float, ...]
+) -> float:
     """
     Calculate the Intersection over Union (IoU) of two bounding boxes in [x, y, w, h] format.
     """
@@ -32,7 +34,9 @@ def compute_iou(bbox1: list[float] | tuple[float, ...], bbox2: list[float] | tup
     return intersection_area / union_area
 
 
-def is_center_inside(bbox_inner: list[float] | tuple[float, ...], bbox_outer: list[float] | tuple[float, ...]) -> bool:
+def is_center_inside(
+    bbox_inner: list[float] | tuple[float, ...], bbox_outer: list[float] | tuple[float, ...]
+) -> bool:
     """
     Check if the center point of bbox_inner [x, y, w, h] lies inside bbox_outer [x, y, w, h].
     """
@@ -46,9 +50,7 @@ def is_center_inside(bbox_inner: list[float] | tuple[float, ...], bbox_outer: li
 
 
 def compare_candidates_to_examples(
-    candidates: list[dict[str, Any]],
-    examples: list[dict[str, Any]],
-    iou_threshold: float = 0.1
+    candidates: list[dict[str, Any]], examples: list[dict[str, Any]], iou_threshold: float = 0.1
 ) -> dict[str, Any]:
     """
     Compare generated candidates against manual examples.
@@ -57,43 +59,43 @@ def compare_candidates_to_examples(
     missed_relevant = []
     matched_non_relevant = []
     unmatched_non_relevant = []
-    
+
     # Track which candidates have matched any example
     matched_candidate_ids = set()
-    
+
     for ex in examples:
         ex_id = ex.get("example_id")
         ex_bbox = ex.get("rough_bbox_image")
         is_relevant = ex.get("is_opening_relevant", True)
-        
+
         best_candidate = None
         best_overlap_val = -1.0
-        
+
         for cand in candidates:
             cand_bbox = cand.get("bbox_image")
             if not cand_bbox or not ex_bbox:
                 continue
-                
+
             iou = compute_iou(cand_bbox, ex_bbox)
             center_cand_in_ex = is_center_inside(cand_bbox, ex_bbox)
             center_ex_in_cand = is_center_inside(ex_bbox, cand_bbox)
-            
+
             is_matched = (iou >= iou_threshold) or center_cand_in_ex or center_ex_in_cand
-            
+
             if is_matched:
                 # We rank match quality primarily by IoU, but any match counts
                 overlap_score = iou if iou > 0 else 0.05
                 if overlap_score > best_overlap_val:
                     best_overlap_val = overlap_score
                     best_candidate = cand
-                    
+
         if best_candidate:
             matched_candidate_ids.add(best_candidate.get("candidate_id"))
             match_entry = {
                 "example_id": ex_id,
                 "candidate_id": best_candidate.get("candidate_id"),
                 "expected_text": ex.get("expected_text"),
-                "raw_text": best_candidate.get("raw_text")
+                "raw_text": best_candidate.get("raw_text"),
             }
             if is_relevant:
                 matched_relevant.append(match_entry)
@@ -101,26 +103,24 @@ def compare_candidates_to_examples(
                 matched_non_relevant.append(match_entry)
         else:
             if is_relevant:
-                missed_relevant.append({
-                    "example_id": ex_id,
-                    "expected_text": ex.get("expected_text")
-                })
+                missed_relevant.append(
+                    {"example_id": ex_id, "expected_text": ex.get("expected_text")}
+                )
             else:
-                unmatched_non_relevant.append({
-                    "example_id": ex_id,
-                    "expected_text": ex.get("expected_text")
-                })
-                
+                unmatched_non_relevant.append(
+                    {"example_id": ex_id, "expected_text": ex.get("expected_text")}
+                )
+
     # Unmatched candidates
     unmatched_candidates = []
     for cand in candidates:
         if cand.get("candidate_id") not in matched_candidate_ids:
             unmatched_candidates.append(cand)
-            
+
     return {
         "matched_relevant": matched_relevant,
         "missed_relevant": missed_relevant,
         "matched_non_relevant": matched_non_relevant,
         "unmatched_non_relevant": unmatched_non_relevant,
-        "unmatched_candidates": unmatched_candidates
+        "unmatched_candidates": unmatched_candidates,
     }
