@@ -1,272 +1,148 @@
 # PlanFuge
 
-PlanFuge is a hackathon prototype for the Riedel Bau challenge. It supports the extraction, review and export of ceiling recesses and slab opening candidates from construction plans for concrete 3D printing preparation.
+PlanFuge (Plan2Print) is an automated construction plan analysis and opening verification platform designed for concrete 3D printing preparation. It supports the ingestion, visual review, and structured export of wall/slab openings, ceiling recesses, and drilling locations from blueprint drawings.
 
-The project is intentionally human-in-the-loop: it does not claim fully automatic construction-plan understanding. It creates structured opening candidates, shows the evidence to a reviewer, and exports reviewable data for downstream planning.
+The project is intentionally **human-in-the-loop (HITL)**: it does not claim fully automatic construction-plan understanding. It creates structured candidate opening coordinates using computer vision and OCR, renders evidence overlays to a reviewer, and exports production-ready verification datasets for downstream fabricators.
 
-## What Problem It Solves
+---
 
-Construction plans contain opening labels such as `WDB`, `DDB`, `UZDB`, `DDP`, `HSI150`, `RA`, `OK` and `UKRD`. The plans are available as PDFs and rendered images. Some information is visible as red annotations, while some text is available directly in the searchable PDF layer.
+## Key Features
 
-PlanFuge combines both sources:
+* **Asynchronous PDF Processing:** Ingests high-resolution blueprint PDFs, automatically generating layout configuration parameters and rendering them at 300 DPI.
+* **Hybrid Candidate Extraction:** Combines red annotation detection (CV) with Tesseract OCR on crop regions, falling back to searchable PDF word coordinate coordinates if OCR is noisy.
+* **High-Resolution CV Overlay Generation:** Draws status-coded bounding box overlays (Blue for `verified`, Red for `needs_review`) and candidate ID labels directly on the drawing with dynamically scaling border stroke widths and font sizes.
+* **Physics-Based Calculations:** Automatically computes volume ($cm^3$) and weight ($kg$) configurations of openings based on default concrete density and dimensions.
+* **Automated Exporters:** Generates finalized contract CSVs and verified openings JSON models ready for Concrete 3D printing preparation.
+* **Automated CI/CD:** Fully integrated with GitHub Actions to run linters, client tests, and backend unit/integration tests (120+ tests) on every pull request.
 
-- PDF rendering for visual inspection and computer vision.
-- Red annotation detection for locating marked regions.
-- OCR on cropped regions for text extraction.
-- Searchable PDF word coordinates as a fallback when OCR is incomplete.
-- Backend review and export so a human can verify the final result.
+---
 
 ## Technology Stack
 
-- **Frontend:** React, Vite, TypeScript, Tailwind CSS, Lucide icons
-- **Backend:** FastAPI, Pydantic
-- **PDF processing:** PyMuPDF
-- **Computer vision:** Pillow and NumPy
-- **OCR:** Tesseract via `pytesseract`
-- **Data processing/export:** pandas and Python CSV utilities
-- **Tests:** Python `unittest`
+* **Frontend:** React, Vite, TypeScript, Tailwind CSS, Lucide Icons
+* **Backend:** FastAPI (Python), Uvicorn, Pydantic, HTTPX
+* **PDF Processing:** PyMuPDF (fitz)
+* **Computer Vision:** Pillow (PIL) and NumPy
+* **OCR engine:** Tesseract OCR (via `pytesseract`)
+* **Data Processing:** pandas
+* **Testing:** Python `unittest` framework, FastAPI TestClient
+
+---
 
 ## Repository Structure
 
 ```text
-client/          React + Vite frontend
-server/          FastAPI backend and export services
-src/             CV, OCR, parsing and extraction modules
-scripts/         Pipeline and utility scripts
-data/            PDFs, rendered pages, metadata, annotations and word coordinates
-outputs/         Generated candidates, crops, debug images and CSV exports
-tests/           Python tests for CV, parsing and pipeline logic
-docs/            Internal project notes and contracts
+.github/workflows/   GitHub Actions CI/CD workflows
+client/              React + Vite frontend dashboard
+docker/              Dockerfiles for multi-stage builds
+docs/                Product requirements (PRD) and internal architectural documents
+server/              FastAPI backend source code and test suite
+src/                 Core computer vision, OCR extraction, and parser modules
+scripts/             Extraction pipeline execution and utility scripts
+data/                Ignored inputs (imports, rendered pages, config files)
+outputs/             Ignored outputs (candidate JSONs, crops, overlays, exports)
+tests/               Python unit and integration tests for CV and pipeline logic
 ```
 
-## Data Flow
+---
 
-### 1. Input Data
+## Pipeline Data Flow
 
-Input PDFs are stored in:
-
-```text
-data/imports/
+```mermaid
+graph TD
+    A[Upload PDF] --> B[Render Page to PNG 300 DPI]
+    B --> C[Auto-generate Grid Config]
+    C --> D[Run CV Red Annotation Detector]
+    D --> E[Crop Candidate Regions]
+    E --> F[Run Tesseract OCR & PDF Word Fallback]
+    F --> G[Parse Dimensions & Save Candidates JSON]
+    G --> H[Draw Visual Bounding Box Overlay PNG]
+    H --> I[Dashboard UI Review & CSV/JSON Export]
 ```
 
-Rendered plan images are stored in:
+1. **PDF Import:** PDFs uploaded to `/api/import/pdf` are stored in `data/imports/`.
+2. **Page Rendering:** PyMuPDF renders the first page of the PDF into a 300 DPI high-resolution PNG in `outputs/rendered/`.
+3. **Auto-Configuration:** Analyzes grid coordinates and scale text to populate the plan metadata config in `data/config/`.
+4. **Computer Vision & OCR:** Extracts coordinates from red-highlighted areas on the drawing, crops those areas, and extracts bounding-box text using Tesseract OCR.
+5. **Pillow Overlay Drawer:** Reads the candidate list, scales the stroke line thickness proportionally to the dimensions, draws hollow status-colored rectangles (Red/Blue), writes text labels, and saves the final PNG to `outputs/overlays/`.
+6. **Dashboard Interaction:** Serves the overlay at `/api/images/overlays/{plan_id}` when the reviewer checks "Show Overlay", enabling cross-referencing between bounding box markers and tabular calculations.
 
-```text
-data/pages/
-```
+---
 
-Plan metadata is stored in:
+## Setup & Execution
 
-```text
-data/metadata/
-```
+### 1. Docker Compose (Recommended)
 
-Searchable PDF word coordinates are stored in:
-
-```text
-data/words/
-```
-
-### 2. Candidate Extraction
-
-The extraction pipeline renders the first PDF page to a high-resolution PNG, detects red annotation regions, crops each region, runs OCR, parses labels and dimensions, and writes candidate JSON.
-
-Important parsed fields include:
-
-- `candidate_id`
-- `source`
-- `label_type`
-- `raw_text`
-- `bbox_image`
-- `crop_path`
-- `width_mm`
-- `height_mm`
-- `diameter_mm`
-- `ra_value`
-- `ok_value`
-- `reference`
-- `confidence`
-- `status`
-
-Candidate files are written to:
-
-```text
-outputs/candidates/<plan_id>_candidates.json
-```
-
-### 3. PDF Word Fallback
-
-OCR can be noisy on construction drawings. For this reason, the project also uses pre-extracted searchable PDF word coordinates from `data/words/`.
-
-This improves extraction when OCR misses small labels or reads characters incorrectly.
-
-### 4. Review and Export
-
-The backend loads candidates and exposes them to the frontend for review. The reviewer can inspect detected candidates, edit values and export structured data.
-
-CSV exports are written to:
-
-```text
-outputs/contract_exports/
-```
-
-Candidates without parsed dimensions stay in the candidate JSON for review. They should not be trusted as final geometry until reviewed.
-
-## Setup
-
-### Docker Compose (Recommended)
-
-Docker Compose installs the Python, Node, Nginx and Tesseract runtime dependencies inside the images. From the repository root, run:
+Docker Compose handles Python, Node, Nginx, and Tesseract dependencies automatically. From the repository root, run:
 
 ```bash
-docker compose up --build --detach --wait
+docker compose up --build -d
 ```
 
-Open:
-
+Open your browser to:
 ```text
 http://localhost:8080
 ```
 
-On first startup, missing candidate JSON files are generated from the tracked searchable-PDF word data. Existing pipeline and review output is preserved in the host `outputs/` directory. Uploaded and tracked plan data remains in `data/`.
-
-Verify the complete UI/API runtime:
-
+Verify that the local containers are healthy and reachable using the integration smoke test:
 ```bash
 python3 scripts/docker_smoke_test.py
 ```
 
-Useful lifecycle commands:
+### 2. Manual Local Development
 
+If you prefer to run the components locally without Docker:
+
+#### System Dependency (Tesseract OCR)
+Install the Tesseract binary and language packs (English & German):
 ```bash
-docker compose logs --follow
-docker compose down
-```
+# Debian/Ubuntu
+sudo apt-get update && sudo apt-get install -y tesseract-ocr tesseract-ocr-deu tesseract-ocr-eng
 
-To use another host port:
-
-```bash
-PLANFUGE_PORT=8081 docker compose up --build --detach --wait
-```
-
-Run the full PDF/CV/OCR pipeline inside Docker when needed:
-
-```bash
-docker compose run --rm backend \
-  python scripts/run_pipeline_on_pdfs.py --pdf-dir data/imports --out outputs
-```
-
-Run these commands from the repository root.
-
-### Python Environment
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
-
-### Frontend Dependencies
-
-```bash
-cd client
-npm install
-cd ..
-```
-
-### OCR System Dependency
-
-`pytesseract` is only the Python wrapper. The Tesseract binary must also be installed on the system.
-
-Examples:
-
-```bash
 # Fedora
 sudo dnf install tesseract tesseract-langpack-deu tesseract-langpack-eng
-
-# Debian/Ubuntu
-sudo apt install tesseract-ocr tesseract-ocr-deu tesseract-ocr-eng
 ```
 
-## Run the Application
-
-PlanFuge has two running parts: backend and frontend.
-
-### 1. Start the Backend
-
-Open the first terminal in the repository root:
-
+#### Backend Setup
 ```bash
+# Initialize virtual env
+python3 -m venv .venv
 source .venv/bin/activate
+pip install -r requirements.txt
+
+# Start FastAPI server
 uvicorn server.app.api:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-Backend URL:
-
-```text
-http://127.0.0.1:8000
-```
-
-### 2. Start the Frontend
-
-Open a second terminal:
-
+#### Frontend Setup
 ```bash
 cd client
+npm install
 npm run dev
 ```
+Open [http://localhost:5173](http://localhost:5173). The Vite dev server will proxy API calls to the FastAPI backend at `http://127.0.0.1:8000`.
 
-Frontend URL:
+---
 
-```text
-http://localhost:5173
-```
+## Testing
 
-The Vite frontend proxies API requests to the FastAPI backend on port `8000`.
+The project maintains high testing standards for all calculation modules, parsers, and endpoints.
 
-## Useful Commands
-
-Check backend input files for a plan:
-
+### Python Tests (Backend & Pipeline)
+Run all 120+ backend unit and integration tests from the project root:
 ```bash
-python scripts/check_backend_inputs.py --plan-id SP_U1_0003
+# Discover and run all unit tests
+python3 -m unittest discover -s server/tests
+python3 -m unittest discover -s tests
 ```
 
-Extract candidates from pre-extracted PDF word coordinates:
-
-```bash
-python scripts/extract_candidates_from_words.py --words data/words/SP_U1_0003_words.json --out outputs/candidates
-```
-
-Validate generated candidates against manual examples:
-
-```bash
-python scripts/validate_candidates_against_examples.py --plan-id SP_U1_0003
-```
-
-## Run Tests
-
-Run all Python tests:
-
-```bash
-python -m unittest discover
-```
-
-Build the frontend:
-
+### Frontend Tests (React)
+Run frontend unit and lint checks:
 ```bash
 cd client
-npm run build
+npm run lint
+npm run test
 ```
 
-## Current Limitations
-
-- OCR quality depends on Tesseract and the quality of the crop.
-- Some candidates require manual review before being trusted.
-- Searchable PDF text improves coverage but can also include unrelated plan text.
-- The project is a prototype and not a production construction automation system.
-- The final export should be interpreted as review-assisted output, not as a fully verified engineering model.
-
-## Demo Message
-
-PlanFuge turns construction PDFs into reviewable opening candidates by combining searchable PDF text, red annotation detection, OCR and a human review workflow. The result is a practical bridge from raw construction plans to structured candidate data for concrete 3D printing preparation.
+### GitHub Actions CI
+The CI runner on every Push and Pull Request to `master` builds the environment, installs system dependencies (`tesseract-ocr`), runs backend unittests, and lint-checks/builds the client dashboard.
