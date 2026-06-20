@@ -36,6 +36,11 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install pre-commit
+
+      - name: Run Pre-commit Hooks
+        run: |
+          pre-commit run --all-files
 
       - name: Run Backend Tests
         run: |
@@ -65,15 +70,24 @@ jobs:
         working-directory: client
         run: npm run build
 
-      - name: Package Frontend Assets to ZIP
+      - name: Validate and Build Docker Compose
         run: |
-          zip -r planfuge-frontend-${{ github.ref_name }}.zip client/dist
+          docker compose config --quiet
+          docker compose build
+
+      - name: Package Release Artifacts
+        run: |
+          python3 scripts/package_release.py --version ${{ github.ref_name }}
 
       - name: Create Draft Release & Upload Assets
-        if: ${{ (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && inputs.dry_run == false) }}
+        if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
         uses: softprops/action-gh-release@v2
         with:
           draft: true
           prerelease: false
           generate_release_notes: true
-          files: planfuge-frontend-${{ github.ref_name }}.zip
+          files: |
+            dist/planfuge-${{ github.ref_name }}.zip
+            dist/planfuge-${{ github.ref_name }}.tar.gz
+            dist/planfuge-frontend-${{ github.ref_name }}.zip
+            dist/SHA256SUMS

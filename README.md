@@ -208,3 +208,54 @@ Run the same pre-commit quality gates used by CI:
 ```bash
 pre-commit run --all-files
 ```
+
+---
+
+## Releases & Packaging
+
+The repository includes a deterministic release packager script ([package_release.py](scripts/package_release.py)) that bundles the application and compiled frontend assets into versioned release artifacts. The GitHub Release Draft workflow ([release.yml](.github/workflows/release.yml)) automatically runs quality checks, builds Docker images, invokes the packager, and creates a draft release on `v*` tag pushes.
+
+### Release Artifacts
+
+Every versioned draft release contains the following artifacts:
+
+1. **Full-Source ZIP (`planfuge-{version}.zip`):** Contains the complete Git-tracked repository files (Docker configuration, backend, frontend source, pipeline scripts, documentation) placed under a versioned root directory (`planfuge-{version}/`). Excludes virtual environments, untracked local logs, and generated outputs.
+2. **Full-Source TAR.GZ (`planfuge-{version}.tar.gz`):** The same complete source bundle packaged as a compressed tar archive.
+3. **Frontend Assets ZIP (`planfuge-frontend-{version}.zip`):** Contains only the compiled, production-ready static frontend assets from `client/dist/` (flat, suitable for independent web server deployment).
+4. **Checksum Manifest (`SHA256SUMS`):** Contains the SHA-256 digests of the three generated zip/tarball files for verification.
+
+### Checksum Verification
+
+After downloading a release bundle, you can verify the integrity of the downloaded files using:
+
+```bash
+# Verify checksums
+sha256sum -c SHA256SUMS
+```
+
+### Maintainer Instructions
+
+#### 1. Manual Dry-Run (Local or CI)
+
+To test the packaging process locally without creating a GitHub release:
+
+```bash
+python3 scripts/package_release.py --version 1.0.1
+```
+
+This command compiles no frontend assets by itself; it packages whatever exists in `client/dist/` into the frontend ZIP. The generated files will be written to the `dist/` directory.
+
+To run a dry-run in GitHub Actions, dispatch the **Release Draft** workflow manually. The workflow runs all validations, builds Docker images, and packages archives as a safe dry-run, but does not publish a release draft.
+
+#### 2. Publishing a New Release
+
+To publish a new release:
+
+1. Ensure all changes are committed and pushed to `master`.
+2. Tag the release commit (using semantic versioning, starting with `v`):
+   ```bash
+   git tag v1.0.2
+   git push origin v1.0.2
+   ```
+3. GitHub Actions will execute the release workflow, run quality gates, compile assets, and create a draft release.
+4. Open the GitHub repository Releases page, inspect the draft release, edit the release notes if desired, and click **Publish Release**.
