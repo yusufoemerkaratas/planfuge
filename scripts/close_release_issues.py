@@ -1,7 +1,7 @@
 import json
 import subprocess
 
-issue_ids = [21, 22, 23]
+issue_ids = [46, 47, 48, 49]
 
 for issue_id in issue_ids:
     print(f"Processing issue #{issue_id}...")
