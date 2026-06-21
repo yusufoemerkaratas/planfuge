@@ -89,7 +89,7 @@ def extract_candidates_from_png_data(
                     "available": item.get("ocr_available", False),
                 }
 
-    for idx, crop in enumerate(crops_metadata):
+    for crop in crops_metadata:
         region_id = crop.get("region_id")
         bbox_image = crop.get("bbox_image")
         crop_path = crop.get("crop_path")
@@ -142,6 +142,16 @@ def extract_candidates_from_png_data(
                 ok_value = parsed.get("ok_value")
                 reference = parsed.get("reference")
 
+        # Once OCR has successfully run, a region that cannot be parsed as an
+        # opening is just red plan markup, not an opening candidate. Keep the
+        # region-only fallback when OCR is unavailable so a missing local
+        # Tesseract installation does not discard every candidate.
+        has_usable_geometry = diameter_mm is not None or (
+            width_mm is not None and height_mm is not None
+        )
+        if ocr_info is not None and ocr_info["available"] and not has_usable_geometry:
+            continue
+
         # Compute confidence score dynamically
         if not label_type:
             if not raw_text.strip():
@@ -163,7 +173,7 @@ def extract_candidates_from_png_data(
                 confidence = 0.60
 
         candidate = {
-            "candidate_id": f"OP-{idx+1:03d}",
+            "candidate_id": f"OP-{len(candidates)+1:03d}",
             "source": source,
             "label_type": label_type,
             "raw_text": raw_text,
@@ -242,6 +252,8 @@ def run_png_extraction_pipeline(
             word_candidates,
             PlanConfig.load_for_plan(config_root, plan_id),
         )
+        _ensure_candidate_crops(word_candidates, image_path, crops_dir, plan_id)
+
         payload = {
             "plan_id": plan_id,
             "candidate_count": len(word_candidates),
@@ -276,6 +288,7 @@ def run_png_extraction_pipeline(
     )
     candidates = _merge_candidate_sources(word_candidates, candidates)
     assign_candidate_spatial_fields(candidates, PlanConfig.load_for_plan(config_root, plan_id))
+    _ensure_candidate_crops(candidates, image_path, crops_dir, plan_id)
 
     # 6. Validate candidates
     for c in candidates:
@@ -291,6 +304,66 @@ def run_png_extraction_pipeline(
         json.dump(payload, f, indent=2, ensure_ascii=False)
 
     return candidates
+
+
+def _ensure_candidate_crops(
+    candidates: list[dict[str, Any]],
+    image_path: Path,
+    crops_dir: Path,
+    plan_id: str,
+) -> None:
+    """Generate crop images for candidates that don't already have one.
+
+    Only produces a crop when the candidate's bounding-box center actually
+    falls inside the rendered plan image.  PDF-words candidates whose
+    coordinates lie in the legend / title-block area beyond the rendered
+    page are silently skipped.
+    """
+    try:
+        from src.image.crop_regions import _load_rgb_image
+
+        pil_image = _load_rgb_image(image_path)
+        img_w, img_h = pil_image.width, pil_image.height
+
+        for c in candidates:
+            if c.get("crop_path"):
+                continue
+
+            bbox = c.get("bbox_image")
+            if not bbox or len(bbox) != 4:
+                continue
+
+            x, y, w, h = bbox
+            w = max(1, w)
+            h = max(1, h)
+
+            # Skip if the bbox center is outside the image
+            cx = x + w / 2
+            cy = y + h / 2
+            if cx < 0 or cx >= img_w or cy < 0 or cy >= img_h:
+                continue
+
+            # Clamp the box edges to image boundaries
+            x0 = max(0, x)
+            y0 = max(0, y)
+            x1 = min(img_w, x + w)
+            y1 = min(img_h, y + h)
+
+            if x0 >= x1 or y0 >= y1:
+                continue
+
+            # Add 80 px padding, clamped to image
+            crop_x0 = max(0, x0 - 80)
+            crop_y0 = max(0, y0 - 80)
+            crop_x1 = min(img_w, x1 + 80)
+            crop_y1 = min(img_h, y1 + 80)
+
+            crop_img = pil_image.crop((crop_x0, crop_y0, crop_x1, crop_y1))
+            crop_file = crops_dir / f"{plan_id}_{c['candidate_id']}.png"
+            crop_img.save(crop_file)
+            c["crop_path"] = str(crop_file)
+    except Exception as e:
+        logger.error(f"Failed to generate dynamic crops for candidates: {e}")
 
 
 def _load_word_candidates(words_path: str | Path | None) -> list[dict[str, Any]]:

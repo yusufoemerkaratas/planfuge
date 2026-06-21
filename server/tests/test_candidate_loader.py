@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from server.app.services.candidate_loader import load_candidates
+from server.app.services.candidate_loader import load_candidates, load_reviewed_candidates
 
 
 class CandidateLoaderTests(unittest.TestCase):
@@ -107,6 +107,98 @@ class CandidateLoaderTests(unittest.TestCase):
         self.assertIsNone(result.candidates[0]["raw_text"])
         self.assertIsNone(result.candidates[0]["label_type"])
         self.assertTrue(any("missing optional field" in w for w in result.warnings))
+
+    def test_filters_legacy_unparsed_ocr_regions_from_raw_candidates(self) -> None:
+        payload = {
+            "plan_id": "SP_U1_0003",
+            "candidates": [
+                {
+                    "candidate_id": "opening",
+                    "source": "png_red_annotation_ocr",
+                    "label_type": "WDB",
+                    "width_mm": 700,
+                    "height_mm": 200,
+                    "bbox_image": [10, 20, 30, 40],
+                    "status": "needs_review",
+                },
+                {
+                    "candidate_id": "noise",
+                    "source": "png_red_annotation_ocr",
+                    "label_type": None,
+                    "bbox_image": [50, 60, 30, 40],
+                    "status": "needs_review",
+                },
+            ],
+        }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            candidates_dir = root / "outputs" / "candidates"
+            candidates_dir.mkdir(parents=True)
+            (candidates_dir / "SP_U1_0003_candidates.json").write_text(json.dumps(payload))
+
+            result = load_candidates(root, "SP_U1_0003")
+
+        self.assertEqual(result.candidate_count, 1)
+        self.assertEqual(result.candidates[0]["candidate_id"], "opening")
+
+    def test_filters_measurement_free_pdf_word_candidates(self) -> None:
+        payload = {
+            "plan_id": "SP_U1_0003",
+            "candidates": [
+                {
+                    "candidate_id": "no-geometry",
+                    "source": "pdf_words",
+                    "label_type": "WDB",
+                    "bbox_image": [10, 20, 30, 40],
+                    "status": "needs_review",
+                },
+                {
+                    "candidate_id": "with-geometry",
+                    "source": "pdf_words",
+                    "label_type": "DDB",
+                    "width_mm": 300,
+                    "height_mm": 400,
+                    "bbox_image": [50, 60, 30, 40],
+                    "status": "needs_review",
+                },
+            ],
+        }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            candidates_dir = root / "outputs" / "candidates"
+            candidates_dir.mkdir(parents=True)
+            (candidates_dir / "SP_U1_0003_candidates.json").write_text(json.dumps(payload))
+
+            result = load_candidates(root, "SP_U1_0003")
+
+        self.assertEqual(result.candidate_count, 1)
+        self.assertEqual(result.candidates[0]["candidate_id"], "with-geometry")
+
+    def test_keeps_unparsed_regions_in_saved_reviews(self) -> None:
+        payload = {
+            "plan_id": "SP_U1_0003",
+            "candidates": [
+                {
+                    "candidate_id": "reviewed-noise",
+                    "source": "png_red_annotation_ocr",
+                    "label_type": None,
+                    "bbox_image": [50, 60, 30, 40],
+                    "status": "rejected",
+                }
+            ],
+        }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            reviews_dir = root / "outputs" / "reviews"
+            reviews_dir.mkdir(parents=True)
+            (reviews_dir / "SP_U1_0003_reviewed_candidates.json").write_text(json.dumps(payload))
+
+            result = load_reviewed_candidates(root, "SP_U1_0003")
+
+        self.assertEqual(result.candidate_count, 1)
 
 
 if __name__ == "__main__":

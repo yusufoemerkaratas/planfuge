@@ -21,7 +21,28 @@ SAMPLE_CANDIDATES_PATH = Path("data") / "samples" / "sample_candidates.json"
 
 def load_candidates(project_root: Path, plan_id: str) -> CandidateLoadResult:
     candidate_path = project_root / "outputs" / "candidates" / f"{plan_id}_candidates.json"
-    return _load_and_validate(candidate_path, plan_id, source="file")
+    result = _load_and_validate(candidate_path, plan_id, source="file")
+    candidates = [
+        candidate
+        for candidate in result.candidates
+        if not _is_unusable_machine_candidate(candidate)
+    ]
+    return CandidateLoadResult(
+        plan_id=result.plan_id,
+        candidates=candidates,
+        candidate_count=len(candidates),
+        warnings=result.warnings,
+        errors=result.errors,
+        source=result.source,
+    )
+
+
+def _is_unusable_machine_candidate(candidate: dict[str, Any]) -> bool:
+    if candidate.get("source") not in {"pdf_words", "png_red_annotation_ocr"}:
+        return False
+    return candidate.get("diameter_mm") is None and not (
+        candidate.get("width_mm") is not None and candidate.get("height_mm") is not None
+    )
 
 
 def load_sample_candidates(project_root: Path) -> CandidateLoadResult:
