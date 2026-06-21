@@ -25,8 +25,14 @@ export function CandidateOverlay({
   onSelect,
 }: CandidateOverlayProps) {
   const boxes = useMemo(
-    () => buildCandidateOverlayBoxes(candidates, selectedCandidateId),
-    [candidates, selectedCandidateId],
+    () =>
+      buildCandidateOverlayBoxes(
+        candidates,
+        selectedCandidateId,
+        imageWidth,
+        imageHeight,
+      ),
+    [candidates, selectedCandidateId, imageWidth, imageHeight],
   );
 
   const handleKeyDown = (

@@ -21,9 +21,11 @@ import {
 } from "./sampleMode";
 import { ThemeToggle } from "./ThemeToggle";
 import { CandidateOverlay } from "./CandidateOverlay";
+import { buildCandidatePreviewUrl } from "./cropPreview";
 
 export interface Candidate {
   candidate_id: string;
+  source?: string;
   status: string;
   raw_text: string | null;
   label_type: string | null;
@@ -36,6 +38,7 @@ export interface Candidate {
   review_comment: string | null;
   crop_path: string | null;
   bbox_image: number[];
+  bbox_pdf?: number[] | null;
 }
 
 type EditableCandidateField =
@@ -412,12 +415,16 @@ function App() {
   const metadata =
     metadataResult?.kind === "available" ? metadataResult.metadata : null;
 
-  // Helper to extract filename from crop_path
-  const getCropFilename = (path: string | null) => {
-    if (!path) return null;
-    const parts = path.split("/");
-    return parts[parts.length - 1];
-  };
+  const selectedCropUrl =
+    activePlan && selectedCandidate
+      ? buildCandidatePreviewUrl(
+          activePlan,
+          selectedCandidate.source,
+          selectedCandidate.bbox_image,
+          selectedCandidate.bbox_pdf,
+          selectedCandidate.crop_path,
+        )
+      : null;
 
   // Helper for text inputs
   const TextInput = ({
@@ -1027,7 +1034,7 @@ function App() {
                   ) : (
                     <div className="space-y-4">
                       {/* Crop Image View */}
-                      {!selectedCandidate.crop_path ? (
+                      {!selectedCropUrl ? (
                         <div className="h-32 border border-dashed border-border rounded-lg flex flex-col items-center justify-center bg-muted/30">
                           <ImageIcon className="w-6 h-6 text-muted-foreground/50 mb-2" />
                           <p className="text-sm text-muted-foreground">
@@ -1044,7 +1051,7 @@ function App() {
                       ) : (
                         <div className="border border-border rounded-lg overflow-hidden bg-white flex items-center justify-center min-h-[128px] p-2">
                           <img
-                            src={`/api/images/crops/${getCropFilename(selectedCandidate.crop_path)}`}
+                            src={selectedCropUrl}
                             alt="Crop Preview"
                             className="max-w-full max-h-48 object-contain"
                             onError={() => setCropError(true)}

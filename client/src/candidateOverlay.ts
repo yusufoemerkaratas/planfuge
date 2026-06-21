@@ -32,10 +32,19 @@ function isValidBoundingBox(
 export function buildCandidateOverlayBoxes(
   candidates: readonly CandidateOverlayInput[],
   selectedCandidateId: string | null = null,
+  imageWidth?: number,
+  imageHeight?: number,
 ): CandidateOverlayBox[] {
   return candidates.flatMap((candidate) => {
     if (!isValidBoundingBox(candidate.bbox_image)) return [];
     const [x, y, width, height] = candidate.bbox_image;
+    if (
+      imageWidth !== undefined &&
+      imageHeight !== undefined &&
+      (x >= imageWidth || y >= imageHeight || x + width <= 0 || y + height <= 0)
+    ) {
+      return [];
+    }
 
     return [
       {

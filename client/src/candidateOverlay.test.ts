@@ -110,3 +110,28 @@ test("skips invalid candidate geometry without hiding valid boxes", () => {
     ["OP-VALID"],
   );
 });
+
+test("skips boxes that are completely outside the displayed image", () => {
+  const boxes = buildCandidateOverlayBoxes(
+    [
+      {
+        candidate_id: "OP-OUTSIDE",
+        status: "needs_review",
+        bbox_image: [120, 10, 20, 20],
+      },
+      {
+        candidate_id: "OP-PARTIAL",
+        status: "needs_review",
+        bbox_image: [90, 10, 20, 20],
+      },
+    ],
+    null,
+    100,
+    100,
+  );
+
+  assert.deepEqual(
+    boxes.map((box) => box.candidateId),
+    ["OP-PARTIAL"],
+  );
+});
