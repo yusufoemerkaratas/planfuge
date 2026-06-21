@@ -320,8 +320,12 @@ def main() -> None:
 
             # Extract PDF words for candidate search dynamically
             words = []
+            rotation_matrix = page.rotation_matrix if page.rotation != 0 else None
             for w in page.get_text("words"):
                 x0, y0, x1, y1, text, *_ = w
+                if rotation_matrix is not None:
+                    rect = fitz.Rect(x0, y0, x1, y1) * rotation_matrix
+                    x0, y0, x1, y1 = rect.x0, rect.y0, rect.x1, rect.y1
                 words.append(
                     {
                         "text": text.strip(),
