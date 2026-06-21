@@ -1,5 +1,7 @@
 import hashlib
+import io
 import json
+import math
 import shutil
 import subprocess
 import sys
@@ -10,6 +12,7 @@ from typing import Any
 from fastapi import BackgroundTasks, FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
+from PIL import Image
 
 from server.app.models import Opening, WeightConfig
 from server.app.schemas import (
@@ -36,6 +39,9 @@ from server.app.services.plan_discovery import discover_plans
 from server.app.services.review_saver import save_reviewed_candidates
 
 JOBS: dict[str, str] = {}
+
+# Architectural plan images can be very large; these are trusted local assets.
+Image.MAX_IMAGE_PIXELS = None
 
 
 app = FastAPI(title="Plan2Print API", version="0.1.0")
@@ -217,6 +223,75 @@ def get_crop_image(filename: str) -> Response:
     with open(image_path, "rb") as f:
         content = f.read()
     return Response(content=content, media_type="image/png")
+
+
+@app.get("/api/images/candidate-crops/{plan_id}")
+def get_candidate_crop_image(
+    plan_id: str,
+    x: float,
+    y: float,
+    width: float,
+    height: float,
+    padding: int = 80,
+) -> Response:
+    """Render a preview from the selected candidate's current image bbox."""
+    coordinates = (x, y, width, height)
+    if not all(math.isfinite(value) for value in coordinates):
+        raise HTTPException(status_code=422, detail="Crop coordinates must be finite")
+    if width <= 0 or height <= 0 or padding < 0 or padding > 1000:
+        raise HTTPException(status_code=422, detail="Invalid crop dimensions")
+
+    image_path = _get_project_root() / "data" / "pages" / f"{plan_id}.png"
+    if not image_path.is_file():
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    with Image.open(image_path) as source:
+        left = max(0, math.floor(x - padding))
+        top = max(0, math.floor(y - padding))
+        right = min(source.width, math.ceil(x + width + padding))
+        bottom = min(source.height, math.ceil(y + height + padding))
+        if left >= right or top >= bottom:
+            raise HTTPException(status_code=422, detail="Crop is outside the image")
+        crop = source.crop((left, top, right, bottom)).convert("RGB")
+
+    buffer = io.BytesIO()
+    crop.save(buffer, format="PNG")
+    return Response(content=buffer.getvalue(), media_type="image/png")
+
+
+@app.get("/api/images/candidate-crops-pdf/{plan_id}")
+def get_candidate_crop_image_from_pdf_bbox(
+    plan_id: str,
+    x0: float,
+    y0: float,
+    x1: float,
+    y1: float,
+    padding: int = 80,
+) -> Response:
+    """Render a preview from PDF-space candidate coordinates."""
+    coordinates = (x0, y0, x1, y1)
+    if not all(math.isfinite(value) for value in coordinates):
+        raise HTTPException(status_code=422, detail="Crop coordinates must be finite")
+    if x1 <= x0 or y1 <= y0 or padding < 0 or padding > 1000:
+        raise HTTPException(status_code=422, detail="Invalid crop dimensions")
+
+    image_path = _get_project_root() / "data" / "pages" / f"{plan_id}.png"
+    if not image_path.is_file():
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    with Image.open(image_path) as source:
+        scale = 300 / 72
+        left = max(0, math.floor(x0 * scale) - padding)
+        right = min(source.width, math.ceil(x1 * scale) + padding)
+        top = max(0, math.floor(y0 * scale) - padding)
+        bottom = min(source.height, math.ceil(y1 * scale) + padding)
+        if left >= right or top >= bottom:
+            raise HTTPException(status_code=422, detail="Crop is outside the image")
+        crop = source.crop((left, top, right, bottom)).convert("RGB")
+
+    buffer = io.BytesIO()
+    crop.save(buffer, format="PNG")
+    return Response(content=buffer.getvalue(), media_type="image/png")
 
 
 @app.get("/api/images/overlays/{plan_id}")

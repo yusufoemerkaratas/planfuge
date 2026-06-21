@@ -64,7 +64,7 @@ def extract_candidates_from_words(words: list[dict[str, Any]]) -> list[dict[str,
         raw_text = " ".join(block_word["text"] for block_word in block_words)
         parsed = parse_opening_label(raw_text)
 
-        if parsed is None:
+        if parsed is None or not _has_usable_geometry(parsed):
             continue
 
         used_word_ids.update(block_indices)
@@ -89,6 +89,17 @@ def _is_anchor(text: str) -> bool:
     return upper_text.startswith(ANCHOR_PREFIXES) or "HSI" in upper_text
 
 
+def _is_primary_anchor(text: str) -> bool:
+    upper_text = text.upper().replace("Р", "P")
+    return upper_text.startswith(ANCHOR_PREFIXES)
+
+
+def _has_usable_geometry(parsed: dict[str, Any]) -> bool:
+    return parsed.get("diameter_mm") is not None or (
+        parsed.get("width_mm") is not None and parsed.get("height_mm") is not None
+    )
+
+
 def _nearby_block_indices(
     words: list[dict[str, Any]],
     anchor_index: int,
@@ -99,6 +110,7 @@ def _nearby_block_indices(
     anchor_center_y = _center_y(anchor)
     block_indices = []
 
+    nearby_indices = []
     for index, word in enumerate(words):
         if word["page"] != anchor["page"]:
             continue
@@ -109,9 +121,14 @@ def _nearby_block_indices(
         if abs(_center_y(word) - anchor_center_y) > y_tolerance:
             continue
 
+        nearby_indices.append(index)
+
+    for index in sorted(nearby_indices, key=lambda candidate_index: words[candidate_index]["x0"]):
+        if index != anchor_index and _is_primary_anchor(words[index]["text"]):
+            break
         block_indices.append(index)
 
-    return sorted(block_indices, key=lambda index: words[index]["x0"])
+    return block_indices
 
 
 def _candidate_from_block(

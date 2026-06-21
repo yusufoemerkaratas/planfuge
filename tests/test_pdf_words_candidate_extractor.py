@@ -66,6 +66,30 @@ class PdfWordsCandidateExtractorTest(unittest.TestCase):
             [],
         )
 
+    def test_ignores_anchor_without_opening_geometry(self):
+        words = [
+            word("WDB", 10, 10, 35, 20),
+            word("OK", 40, 10, 55, 20),
+            word("-60", 60, 10, 85, 20),
+        ]
+
+        self.assertEqual(extract_candidates_from_words(words), [])
+
+    def test_stops_candidate_block_at_the_next_primary_anchor(self):
+        words = [
+            word("WDB", 10, 10, 35, 20),
+            word("70/20", 40, 10, 75, 20),
+            word("DDB", 82, 10, 107, 20),
+            word("30/40", 112, 10, 147, 20),
+        ]
+
+        candidates = extract_candidates_from_words(words)
+
+        self.assertEqual(len(candidates), 2)
+        self.assertEqual(candidates[0]["raw_text"], "WDB 70/20")
+        self.assertEqual(candidates[0]["bbox_pdf"], [10.0, 10.0, 75.0, 20.0])
+        self.assertEqual(candidates[1]["raw_text"], "DDB 30/40")
+
     def test_loads_words_and_saves_candidates_json(self):
         words = [word("DDB130/140", 5, 7, 80, 20)]
 

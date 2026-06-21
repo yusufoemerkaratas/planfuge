@@ -81,15 +81,15 @@ class DockerSessionRuntimeTests(unittest.TestCase):
             )
 
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertFalse(stale_page.exists())
-            self.assertFalse(stale_candidate.exists())
+            self.assertTrue(stale_page.exists())
+            self.assertTrue(stale_candidate.exists())
             self.assertTrue((runtime_root / "data" / "pages").is_dir())
             self.assertTrue((runtime_root / "data" / "imports").is_dir())
             self.assertTrue((runtime_root / "outputs" / "candidates").is_dir())
             self.assertTrue((runtime_root / "outputs" / "exports").is_dir())
             self.assertTrue(command_marker.is_file())
 
-    def test_compose_backend_has_no_persistent_runtime_volumes(self) -> None:
+    def test_compose_backend_has_persistent_runtime_volumes(self) -> None:
         result = subprocess.run(
             ["docker", "compose", "config", "--format", "json"],
             cwd=PROJECT_ROOT,
@@ -101,7 +101,9 @@ class DockerSessionRuntimeTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         compose_config = json.loads(result.stdout)
         backend = compose_config["services"]["backend"]
-        self.assertEqual(backend.get("volumes", []), [])
+        volumes = [v.get("target") for v in backend.get("volumes", [])]
+        self.assertIn("/app/data", volumes)
+        self.assertIn("/app/outputs", volumes)
 
     def test_smoke_test_accepts_a_fresh_runtime_with_no_plans(self) -> None:
         server = ThreadingHTTPServer(("127.0.0.1", 0), SmokeApiHandler)

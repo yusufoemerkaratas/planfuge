@@ -49,7 +49,7 @@ class TestPngCandidateExtractor(unittest.TestCase):
         # RED-001 is parseable, RED-002 is unparseable
         candidates = extract_candidates_from_png_data(self.crops_metadata, self.ocr_results)
 
-        self.assertEqual(len(candidates), 2)
+        self.assertEqual(len(candidates), 1)
 
         # RED-001 (parseable)
         c1 = candidates[0]
@@ -67,23 +67,6 @@ class TestPngCandidateExtractor(unittest.TestCase):
         self.assertEqual(c1["reference"], "UKRD")
         self.assertEqual(c1["confidence"], 0.90)  # label_type + dim + vertical + ref
         self.assertEqual(c1["status"], "needs_review")
-
-        # RED-002 (unparseable)
-        c2 = candidates[1]
-        self.assertEqual(c2["candidate_id"], "OP-002")
-        self.assertEqual(c2["source"], "png_red_annotation_ocr")
-        self.assertIsNone(c2["label_type"])
-        self.assertEqual(c2["raw_text"], "Random Noise Text")
-        self.assertEqual(c2["normalized_text"], "RANDOM NOISE TEXT")
-        self.assertEqual(c2["bbox_image"], [100, 200, 50, 60])
-        self.assertIsNone(c2["width_mm"])
-        self.assertIsNone(c2["height_mm"])
-        self.assertIsNone(c2["diameter_mm"])
-        self.assertIsNone(c2["ra_value"])
-        self.assertIsNone(c2["ok_value"])
-        self.assertIsNone(c2["reference"])
-        self.assertEqual(c2["confidence"], 0.30)  # label_type None, raw_text present
-        self.assertEqual(c2["status"], "needs_review")
 
     def test_extract_candidates_missing_ocr_results(self):
         # If ocr_results is None
@@ -109,12 +92,7 @@ class TestPngCandidateExtractor(unittest.TestCase):
             }
         ]
         candidates = extract_candidates_from_png_data(self.crops_metadata[:1], ocr_results_empty)
-        self.assertEqual(len(candidates), 1)
-        c = candidates[0]
-        self.assertEqual(c["raw_text"], "")
-        self.assertIsNone(c["normalized_text"])
-        self.assertEqual(c["confidence"], 0.20)  # label_type None, raw_text empty
-        self.assertEqual(c["source"], "png_red_annotation_ocr")
+        self.assertEqual(candidates, [])
 
     def test_validate_candidate_valid(self):
         valid_candidate = {

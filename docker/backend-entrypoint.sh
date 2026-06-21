@@ -9,7 +9,7 @@ case "$runtime_root" in
         ;;
 esac
 
-rm -rf -- "$runtime_root/data" "$runtime_root/outputs"
+
 mkdir -p \
     "$runtime_root/data/config" \
     "$runtime_root/data/imports" \
