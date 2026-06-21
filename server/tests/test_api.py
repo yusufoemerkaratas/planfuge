@@ -13,6 +13,8 @@ from server.app.api import (
     calculate_opening,
     export_verified_csv_endpoint,
     export_verified_json_endpoint,
+    get_candidate_crop_image,
+    get_candidate_crop_image_from_pdf_bbox,
     get_candidates,
     get_crop_image,
     get_metadata,
@@ -111,6 +113,70 @@ class ApiTests(unittest.TestCase):
 
         self.assertEqual(data["candidate_count"], 0)
         self.assertTrue(any("not found" in w for w in data["warnings"]))
+
+    def test_candidate_crop_is_rendered_from_current_bbox(self) -> None:
+        from PIL import Image
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            pages_dir = root / "data" / "pages"
+            pages_dir.mkdir(parents=True)
+            source = Image.new("RGB", (100, 80), "white")
+            source.paste("red", (20, 10, 40, 30))
+            source.save(pages_dir / "PLAN-1.png")
+            app.state.project_root = root
+
+            response = get_candidate_crop_image("PLAN-1", 20, 10, 20, 20, padding=5)
+            rendered = Image.open(io.BytesIO(response.body))
+
+        self.assertEqual(rendered.size, (30, 30))
+        self.assertEqual(rendered.getpixel((5, 5)), (255, 0, 0))
+
+    def test_candidate_crop_is_rendered_from_pdf_bbox(self) -> None:
+        from PIL import Image
+
+        scale = 300 / 72
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            pages_dir = root / "data" / "pages"
+            pages_dir.mkdir(parents=True)
+            source = Image.new("RGB", (100, 80), "white")
+            source.paste("red", (20, 10, 40, 30))
+            source.save(pages_dir / "PLAN-2.png")
+            app.state.project_root = root
+
+            response = get_candidate_crop_image_from_pdf_bbox(
+                "PLAN-2",
+                20 / scale,
+                10 / scale,
+                40 / scale,
+                30 / scale,
+                padding=5,
+            )
+            rendered = Image.open(io.BytesIO(response.body))
+
+        self.assertEqual(rendered.size, (30, 30))
+        self.assertEqual(rendered.getpixel((5, 5)), (255, 0, 0))
+
+    def test_large_plan_images_disable_pillow_pixel_limit(self) -> None:
+        from PIL import Image
+
+        self.assertIsNone(Image.MAX_IMAGE_PIXELS)
+
+    def test_candidate_crop_rejects_bbox_outside_image(self) -> None:
+        from PIL import Image
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            pages_dir = root / "data" / "pages"
+            pages_dir.mkdir(parents=True)
+            Image.new("RGB", (20, 20), "white").save(pages_dir / "PLAN-1.png")
+            app.state.project_root = root
+
+            with self.assertRaises(HTTPException) as raised:
+                get_candidate_crop_image("PLAN-1", 30, 30, 5, 5, padding=0)
+
+        self.assertEqual(raised.exception.status_code, 422)
 
     def test_sample_candidates_endpoint_returns_sample_data(self) -> None:
         sample_payload = {
