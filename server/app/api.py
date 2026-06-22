@@ -354,12 +354,14 @@ async def import_pdf(file: UploadFile, background_tasks: BackgroundTasks) -> dic
             try:
                 meta_data = json.loads(meta_path.read_text(encoding="utf-8"))
                 if isinstance(meta_data, dict) and meta_data.get("pdf_hash") == pdf_hash:
-                    return {
-                        "status": "duplicate",
-                        "plan_id": meta_data.get(
-                            "plan_id", meta_path.stem.removesuffix("_metadata")
-                        ),
-                    }
+                    plan_id = meta_data.get("plan_id", meta_path.stem.removesuffix("_metadata"))
+                    # Only treat as duplicate if the rendered PNG page also exists
+                    target_png = project_root / "data" / "pages" / f"{plan_id}.png"
+                    if target_png.is_file():
+                        return {
+                            "status": "duplicate",
+                            "plan_id": plan_id,
+                        }
             except Exception:
                 pass
 

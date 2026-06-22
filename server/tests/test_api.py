@@ -610,6 +610,11 @@ class ApiTests(unittest.TestCase):
             metadata_file = metadata_dir / "SP_U1_0001_metadata.json"
             metadata_file.write_text(json.dumps({"plan_id": "SP_U1_0001", "pdf_hash": pdf_hash}))
 
+            # Touch the target PNG so the API knows it is fully present
+            pages_dir = root / "data" / "pages"
+            pages_dir.mkdir(parents=True, exist_ok=True)
+            (pages_dir / "SP_U1_0001.png").touch()
+
             app.state.project_root = root
             client = TestClient(app)
             response = client.post(
