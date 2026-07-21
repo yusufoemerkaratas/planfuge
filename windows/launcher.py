@@ -120,7 +120,17 @@ def main() -> int:
 
         import uvicorn
 
-        uvicorn.run(app, host=host, port=port, log_level="info")
+        # The packaged application uses PyInstaller's windowed mode, where
+        # sys.stdout/sys.stderr are None. Uvicorn's default colour formatter
+        # probes sys.stderr and therefore cannot be configured in that mode.
+        uvicorn.run(
+            app,
+            host=host,
+            port=port,
+            log_level="info",
+            log_config=None,
+            access_log=False,
+        )
         return 0
     except Exception as exc:
         show_startup_error(str(exc))
