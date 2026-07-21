@@ -253,65 +253,35 @@ def group_openings(
     return grouped
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--pdf", default=None, help="Path to a single PDF file to process. Overrides --pdf-dir."
-    )
-    parser.add_argument(
-        "--pdf-dir",
-        default=str(REPO_ROOT.parent / "pdf"),
-        help="Path to the folder containing PDF files. Defaults to ../pdf.",
-    )
-    parser.add_argument(
-        "--out", default="outputs", help="Output root directory. Defaults to 'outputs'."
-    )
-    parser.add_argument(
-        "--clean-red",
-        action="store_true",
-        default=True,
-        help="Enable HSV-based red markup/cloud pixel cleanup. Defaults to True.",
-    )
-    args = parser.parse_args()
+def process_pdf(
+    pdf_path: Path,
+    *,
+    project_root: Path,
+    output_root: Path | None = None,
+    clean_red: bool = True,
+) -> dict[str, object]:
+    """Process one PDF using an explicit writable application data root.
 
-    output_root = Path(args.out).resolve()
+    Keeping the pipeline in-process lets the Windows PyInstaller bundle run
+    without requiring a separate Python installation.
+    """
+    pdf_path = pdf_path.resolve()
+    project_root = project_root.resolve()
+    output_root = (output_root or project_root / "outputs").resolve()
 
-    if args.pdf:
-        single_pdf = Path(args.pdf).resolve()
-        if not single_pdf.exists() or not single_pdf.is_file():
-            print(f"Error: PDF file not found: {single_pdf}", file=sys.stderr)
-            sys.exit(1)
-        pdf_files = [single_pdf]
-        print(f"Running pipeline on single PDF: {single_pdf}")
-    else:
-        pdf_dir = Path(args.pdf_dir).resolve()
-        if not pdf_dir.exists() or not pdf_dir.is_dir():
-            print(
-                f"Error: PDF directory not found or is not a directory: {pdf_dir}", file=sys.stderr
-            )
-            sys.exit(1)
-        pdf_files = sorted(list(pdf_dir.glob("*.pdf")))
-        if not pdf_files:
-            print(f"No PDF files found in {pdf_dir}", file=sys.stderr)
-            sys.exit(0)
-        print(f"Running pipeline on {len(pdf_files)} PDF files from {pdf_dir}")
+    if not pdf_path.is_file():
+        raise FileNotFoundError(f"PDF file not found: {pdf_path}")
 
-    print(f"Output root: {output_root}")
-    print(f"Clean red annotation markup: {args.clean_red}")
-
-    # Create temporary or rendered directory for PNGs
     rendered_dir = output_root / "rendered"
     rendered_dir.mkdir(parents=True, exist_ok=True)
 
-    for pdf_path in pdf_files:
-        plan_id = pdf_path.stem
-        print(f"\nProcessing plan: {plan_id}...")
+    plan_id = pdf_path.stem
+    print(f"\nProcessing plan: {plan_id}...")
 
-        # 1. Render PDF page 0 to PNG
-        png_path = rendered_dir / f"{plan_id}.png"
-        print(f"  Rendering {pdf_path.name} to {png_path.name} at 300 DPI...")
-        try:
-            doc = fitz.open(pdf_path)
+    png_path = rendered_dir / f"{plan_id}.png"
+    print(f"  Rendering {pdf_path.name} to {png_path.name} at 300 DPI...")
+    try:
+        with fitz.open(pdf_path) as doc:
             page = doc[0]
             mat = fitz.Matrix(300 / 72, 300 / 72)  # 300 DPI
             pix = page.get_pixmap(matrix=mat)
@@ -338,88 +308,130 @@ def main() -> None:
                 )
             import json
 
-            words_dir = REPO_ROOT / "data" / "words"
+            words_dir = project_root / "data" / "words"
             words_dir.mkdir(parents=True, exist_ok=True)
             words_path = words_dir / f"{plan_id}_words.json"
             with open(words_path, "w", encoding="utf-8") as f:
                 json.dump(words, f, indent=2, ensure_ascii=False)
             print(f"    Extracted {len(words)} PDF words to {words_path}")
 
-            doc.close()
-        except Exception as render_err:
-            print(
-                f"  Error rendering PDF or extracting words for {pdf_path.name}: {render_err}",
-                file=sys.stderr,
-            )
-            continue
+    except Exception as render_err:
+        raise RuntimeError(
+            f"Error rendering PDF or extracting words for {pdf_path.name}: {render_err}"
+        ) from render_err
 
-        # 1b. Auto-generate plan config if one doesn't already exist
-        try:
-            auto_generate_config(
-                plan_id=plan_id,
-                png_path=png_path,
-                project_root=REPO_ROOT,
-                overwrite=False,
-            )
-        except Exception as cfg_err:
-            print(f"  Warning: Auto-config generation failed: {cfg_err}", file=sys.stderr)
+    # Auto-generate plan config if one doesn't already exist.
+    try:
+        auto_generate_config(
+            plan_id=plan_id,
+            png_path=png_path,
+            project_root=project_root,
+            overwrite=False,
+        )
+    except Exception as cfg_err:
+        print(f"  Warning: Auto-config generation failed: {cfg_err}", file=sys.stderr)
 
-        # 2. Run Candidate Extraction Pipeline
+    overlay_path: Path | None = None
+    try:
         print(f"  Running candidate extraction pipeline on {png_path.name}...")
+        candidates = run_png_extraction_pipeline(
+            image_path=png_path,
+            plan_id=plan_id,
+            output_root=output_root,
+            clean_red=clean_red,
+            psm=11,
+            project_root=project_root,
+        )
+        print(f"    Extracted {len(candidates)} candidate(s).")
+        candidates_path = output_root / "candidates" / f"{plan_id}_candidates.json"
+        print(f"    Saved candidates to: {candidates_path}")
+
+        contract_dir = output_root / "contract_exports"
+        contract_dir.mkdir(parents=True, exist_ok=True)
+        csv_path = contract_dir / f"{plan_id}_contract.csv"
+
+        export_result = export_contract_openings_csv(project_root, plan_id, candidates)
+        csv_path.write_text(
+            Path(export_result["path"]).read_text(encoding="utf-8"), encoding="utf-8"
+        )
+        print(f"    Saved contract CSV to: {csv_path}")
+
+        overlay_dir = output_root / "overlays"
+        overlay_dir.mkdir(parents=True, exist_ok=True)
+        overlay_path = overlay_dir / f"{plan_id}_overlay.png"
+        print(f"    Generating CV overlay to: {overlay_path}")
+
+        from src.candidates.overlay_drawer import draw_candidates_overlay
+
+        draw_candidates_overlay(
+            image_path=png_path, candidates_path=candidates_path, output_path=overlay_path
+        )
+        print(f"    Saved CV overlay to: {overlay_path}")
+    except Exception:
+        if overlay_path and overlay_path.is_file():
+            overlay_path.unlink(missing_ok=True)
+        raise
+
+    return {
+        "plan_id": plan_id,
+        "png_path": png_path,
+        "candidates_path": candidates_path,
+        "csv_path": csv_path,
+        "overlay_path": overlay_path,
+        "candidate_count": len(candidates),
+    }
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--pdf", default=None, help="Path to a single PDF file to process. Overrides --pdf-dir."
+    )
+    parser.add_argument(
+        "--pdf-dir",
+        default=str(REPO_ROOT.parent / "pdf"),
+        help="Path to the folder containing PDF files. Defaults to ../pdf.",
+    )
+    parser.add_argument(
+        "--out", default="outputs", help="Output root directory. Defaults to 'outputs'."
+    )
+    parser.add_argument(
+        "--clean-red",
+        action="store_true",
+        default=True,
+        help="Enable HSV-based red markup/cloud pixel cleanup. Defaults to True.",
+    )
+    args = parser.parse_args()
+
+    output_root = Path(args.out).resolve()
+    if args.pdf:
+        pdf_files = [Path(args.pdf).resolve()]
+    else:
+        pdf_dir = Path(args.pdf_dir).resolve()
+        if not pdf_dir.is_dir():
+            print(f"Error: PDF directory not found: {pdf_dir}", file=sys.stderr)
+            sys.exit(1)
+        pdf_files = sorted(pdf_dir.glob("*.pdf"))
+
+    if not pdf_files:
+        print("No PDF files found.", file=sys.stderr)
+        return
+
+    failures = 0
+    for pdf_path in pdf_files:
         try:
-            candidates = run_png_extraction_pipeline(
-                image_path=png_path,
-                plan_id=plan_id,
+            process_pdf(
+                pdf_path,
+                project_root=REPO_ROOT,
                 output_root=output_root,
                 clean_red=args.clean_red,
-                psm=11,
-                project_root=REPO_ROOT,
             )
-            print(f"    Extracted {len(candidates)} candidate(s).")
-            candidates_path = output_root / "candidates" / f"{plan_id}_candidates.json"
-            print(f"    Saved candidates to: {candidates_path}")
-
-            # 3. Automatically export to final Contract CSV
-            contract_dir = output_root / "contract_exports"
-            contract_dir.mkdir(parents=True, exist_ok=True)
-            csv_path = contract_dir / f"{plan_id}_contract.csv"
-
-            export_result = export_contract_openings_csv(REPO_ROOT, plan_id, candidates)
-            csv_path.write_text(
-                Path(export_result["path"]).read_text(encoding="utf-8"), encoding="utf-8"
-            )
-            print(f"    Saved contract CSV to: {csv_path}")
-
-            # 4. Generate CV overlay image
-            overlay_path = None
-            try:
-                overlay_dir = output_root / "overlays"
-                overlay_dir.mkdir(parents=True, exist_ok=True)
-                overlay_path = overlay_dir / f"{plan_id}_overlay.png"
-                print(f"    Generating CV overlay to: {overlay_path}")
-
-                from src.candidates.overlay_drawer import draw_candidates_overlay
-
-                draw_candidates_overlay(
-                    image_path=png_path, candidates_path=candidates_path, output_path=overlay_path
-                )
-                print(f"    Saved CV overlay to: {overlay_path}")
-            except Exception as draw_err:
-                print(f"  Error generating CV overlay for {plan_id}: {draw_err}", file=sys.stderr)
-                if overlay_path and overlay_path.is_file():
-                    try:
-                        overlay_path.unlink()
-                    except Exception:
-                        pass
-                raise draw_err
         except Exception as e:
-            print(f"  Error running extraction pipeline for {plan_id}: {e}", file=sys.stderr)
-            if "overlay_path" in locals() and overlay_path and overlay_path.is_file():
-                try:
-                    overlay_path.unlink()
-                except Exception:
-                    pass
+            failures += 1
+            print(f"Error processing {pdf_path.name}: {e}", file=sys.stderr)
 
+    if failures:
+        sys.exit(1)
     print("\nAll PDFs processed successfully.")
 
 

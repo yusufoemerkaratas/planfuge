@@ -625,9 +625,8 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(data["status"], "duplicate")
             self.assertEqual(data["plan_id"], "SP_U1_0001")
 
-    @unittest.mock.patch("subprocess.run")
-    def test_import_pdf_async_and_status(self, mock_run) -> None:
-        import unittest.mock
+    @unittest.mock.patch("scripts.run_pipeline_on_pdfs.process_pdf")
+    def test_import_pdf_async_and_status(self, mock_process_pdf) -> None:
 
         from fastapi.testclient import TestClient
 
@@ -636,7 +635,7 @@ class ApiTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
 
-            def mock_subprocess(*args, **kwargs):
+            def mock_process(*args, **kwargs):
                 from server.app.api import JOBS
 
                 self.assertEqual(JOBS.get("async_plan"), "processing")
@@ -650,11 +649,9 @@ class ApiTests(unittest.TestCase):
                 cand_dir.mkdir(parents=True, exist_ok=True)
                 (cand_dir / "async_plan_candidates.json").touch()
 
-                res = unittest.mock.MagicMock()
-                res.returncode = 0
-                return res
+                return {"plan_id": "async_plan"}
 
-            mock_run.side_effect = mock_subprocess
+            mock_process_pdf.side_effect = mock_process
 
             app.state.project_root = root
             client = TestClient(app)
@@ -697,9 +694,8 @@ class ApiTests(unittest.TestCase):
             response_missing = client.get("/api/downloads/csv/MISSING")
             self.assertEqual(response_missing.status_code, 404)
 
-    @unittest.mock.patch("subprocess.run")
-    def test_import_pdf_generates_overlay(self, mock_run) -> None:
-        import unittest.mock
+    @unittest.mock.patch("scripts.run_pipeline_on_pdfs.process_pdf")
+    def test_import_pdf_generates_overlay(self, mock_process_pdf) -> None:
 
         from fastapi.testclient import TestClient
 
@@ -708,7 +704,7 @@ class ApiTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
 
-            def mock_subprocess(*args, **kwargs):
+            def mock_process(*args, **kwargs):
                 # 1. Create rendered page PNG
                 png_dir = root / "outputs" / "rendered"
                 png_dir.mkdir(parents=True, exist_ok=True)
@@ -724,11 +720,9 @@ class ApiTests(unittest.TestCase):
                 overlay_dir.mkdir(parents=True, exist_ok=True)
                 (overlay_dir / "overlay_plan_overlay.png").write_bytes(b"mocked_overlay_bytes")
 
-                res = unittest.mock.MagicMock()
-                res.returncode = 0
-                return res
+                return {"plan_id": "overlay_plan"}
 
-            mock_run.side_effect = mock_subprocess
+            mock_process_pdf.side_effect = mock_process
 
             app.state.project_root = root
             client = TestClient(app)
