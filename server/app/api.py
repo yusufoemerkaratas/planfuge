@@ -2,9 +2,8 @@ import hashlib
 import io
 import json
 import math
+import os
 import shutil
-import subprocess
-import sys
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
@@ -12,6 +11,7 @@ from typing import Any
 from fastapi import BackgroundTasks, FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
+from fastapi.staticfiles import StaticFiles
 from PIL import Image
 
 from server.app.models import Opening, WeightConfig
@@ -306,32 +306,16 @@ def get_overlay_image(plan_id: str) -> Response:
 
 
 def run_pipeline_task(project_root: Path, pdf_path: Path, plan_id: str) -> None:
-    script = project_root / "scripts" / "run_pipeline_on_pdfs.py"
     try:
-        result = subprocess.run(
-            [sys.executable, str(script), "--pdf", str(pdf_path)],
-            capture_output=True,
-            text=True,
-            cwd=str(project_root),
-        )
-        # Log stdout/stderr so we can debug pipeline run in Docker logs
-        if result.stdout:
-            print(f"--- Pipeline Stdout for {plan_id} ---", flush=True)
-            print(result.stdout, flush=True)
-        if result.stderr:
-            print(f"--- Pipeline Stderr for {plan_id} ---", flush=True)
-            print(result.stderr, flush=True)
+        from scripts.run_pipeline_on_pdfs import process_pdf
 
-        if result.returncode == 0:
-            JOBS[plan_id] = "completed"
-            rendered_png = project_root / "outputs" / "rendered" / f"{plan_id}.png"
-            target_png = project_root / "data" / "pages" / f"{plan_id}.png"
-            if rendered_png.is_file():
-                target_png.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(rendered_png, target_png)
-        else:
-            JOBS[plan_id] = "failed"
-            print(f"Pipeline failed for {plan_id} with exit code {result.returncode}", flush=True)
+        process_pdf(pdf_path, project_root=project_root)
+        JOBS[plan_id] = "completed"
+        rendered_png = project_root / "outputs" / "rendered" / f"{plan_id}.png"
+        target_png = project_root / "data" / "pages" / f"{plan_id}.png"
+        if rendered_png.is_file():
+            target_png.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(rendered_png, target_png)
     except Exception as e:
         JOBS[plan_id] = "failed"
         print(f"Pipeline failed for {plan_id} with exception: {e}", flush=True)
@@ -391,3 +375,30 @@ async def import_pdf(file: UploadFile, background_tasks: BackgroundTasks) -> dic
     background_tasks.add_task(run_pipeline_task, project_root, pdf_path, plan_id)
 
     return {"plan_id": plan_id, "status": "processing"}
+
+
+def mount_packaged_frontend(
+    frontend_dir: str | Path | None = None, *, target_app: FastAPI | None = None
+) -> bool:
+    """Serve a compiled React frontend when running as a desktop bundle.
+
+    Docker continues to serve the frontend through nginx.  The Windows
+    launcher sets ``PLANFUGE_FRONTEND_DIR`` so the self-contained executable
+    can serve the same assets without Docker or Node.js.
+    """
+    configured_dir = frontend_dir or os.environ.get("PLANFUGE_FRONTEND_DIR")
+    if not configured_dir:
+        return False
+
+    static_dir = Path(configured_dir).resolve()
+    if not (static_dir / "index.html").is_file():
+        return False
+
+    destination_app = target_app or app
+    destination_app.mount(
+        "/", StaticFiles(directory=static_dir, html=True), name="packaged-frontend"
+    )
+    return True
+
+
+mount_packaged_frontend()

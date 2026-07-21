@@ -77,6 +77,16 @@ tests/               Python pipeline integration tests
 
 ## Setup & Execution
 
+### Windows Installer (End Users)
+
+Download `PlanFuge-Setup-<version>.exe` from the GitHub Releases page and run it. The installer
+creates Start menu and optional desktop shortcuts. Opening PlanFuge starts a private local server
+on an available `127.0.0.1` port and opens the default browser automatically.
+
+The Windows package includes Python, the compiled React frontend, Tesseract OCR, and the German
+and English OCR data. Docker, Node.js, Python, and command-line setup are not required. Mutable
+application data is stored under `%LOCALAPPDATA%\PlanFuge`.
+
 ### 1. Using Docker Compose (Recommended)
 
 To build and start the application services:
@@ -164,3 +174,6 @@ Tagging a commit with `v*` and pushing it to GitHub triggers the release workflo
 1. `planfuge-{version}.zip` (Source bundle)
 2. `planfuge-frontend-{version}.zip` (Compiled frontend assets)
 3. `SHA256SUMS` (Checksum manifest)
+
+Tagged releases additionally build `PlanFuge-Setup-<version>.exe` on a Windows GitHub Actions
+runner. See [docs/windows_release.md](docs/windows_release.md) for build and release details.
