@@ -3,7 +3,7 @@ import { useMemo, type KeyboardEvent } from "react";
 import {
   buildCandidateOverlayBoxes,
   type CandidateOverlayInput,
-} from "./candidateOverlay";
+} from "./candidateOverlayGeometry";
 
 interface CandidateOverlayProps {
   candidates: readonly CandidateOverlayInput[];

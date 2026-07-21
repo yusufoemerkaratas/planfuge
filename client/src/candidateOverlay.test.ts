@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildCandidateOverlayBoxes } from "./candidateOverlay.ts";
+import { buildCandidateOverlayBoxes } from "./candidateOverlayGeometry.ts";
 
 test("maps candidate image geometry to an SVG overlay box", () => {
   const boxes = buildCandidateOverlayBoxes([
